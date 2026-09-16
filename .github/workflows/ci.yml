@@ -14,16 +14,24 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Install ShellCheck
-        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Install shell tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          SHFMT_VERSION="3.12.0"
+          curl -fsSLo /tmp/shfmt "https://github.com/mvdan/sh/releases/download/v${SHFMT_VERSION}/shfmt_v${SHFMT_VERSION}_linux_amd64"
+          sudo install -m 0755 /tmp/shfmt /usr/local/bin/shfmt
 
       - name: Check Bash syntax
         run: |
           bash -n bin/flenv
           find lib test -type f -name '*.sh' -print0 | xargs -0 -n1 bash -n
 
+      - name: Check formatting
+        run: shfmt -d bin/flenv lib test
+
       - name: Run ShellCheck
-        run: shellcheck bin/flenv lib/*.sh lib/commands/*.sh lib/provision/*.sh test/*.sh
+        run: shellcheck bin/flenv lib/*.sh lib/commands/*.sh test/*.sh
 
       - name: Run CLI tests
         run: bash test/cli.sh
