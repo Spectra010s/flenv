@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  shell:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Check Bash syntax
+        run: |
+          bash -n bin/flenv
+          find lib test -type f -name '*.sh' -print0 | xargs -0 -n1 bash -n
+
+      - name: Run ShellCheck
+        run: shellcheck bin/flenv lib/*.sh lib/commands/*.sh lib/provision/*.sh test/*.sh
+
+      - name: Run CLI tests
+        run: bash test/cli.sh
