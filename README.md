@@ -14,7 +14,7 @@ Early development. The repository is private while the first usable version is b
 
 - Install Flutter and the Android SDK without Android Studio.
 - Let users choose where the environment is stored.
-- Keep Flutter, Android SDK, Pub cache, Gradle cache, and related state scoped to an environment when isolation is requested.
+- Keep Flutter, Android SDK, Pub cache, Gradle cache, workspace, and related state scoped to an environment when isolation is requested.
 - Support multiple named environments.
 - Make activation predictable from any shell.
 - Provide diagnostics for broken or incomplete environments.
@@ -30,7 +30,7 @@ flenv install
 flenv install --root /tmp
 flenv install --root /mnt --name stable
 
-# Explicitly isolate SDKs and caches inside the environment
+# Explicitly isolate SDKs, caches, and workspace inside the environment
 flenv install --root /tmp --name stable --isolated
 
 # Environment management
@@ -72,16 +72,17 @@ uses:
 ├── cache/
 │   ├── pub/
 │   └── gradle/
+├── workspace/
 └── state/
 ```
 
-User projects are not placed inside or owned by flenv environments.
+For isolated environments, flenv creates and owns the `workspace/` directory so project working trees can stay on the selected filesystem too. Projects inside `workspace/` remain protected user data and normal environment removal must not silently delete them.
 
 The full v0.1 storage, isolation, activation, ephemeral-root, and removal semantics are documented in [`docs/environment-model.md`](docs/environment-model.md).
 
 ## Why flenv?
 
-Flutter's normal setup assumes a fairly conventional development machine. On a constrained cloud shell, `$HOME` may be tiny while `/tmp`, `/mnt`, or another mounted filesystem has tens of gigabytes available. Installing Flutter in one place while Android SDK components, Pub packages, Gradle caches, and NDK downloads quietly fill `$HOME` defeats the point of moving Flutter at all.
+Flutter's normal setup assumes a fairly conventional development machine. On a constrained cloud shell, `$HOME` may be tiny while `/tmp`, `/mnt`, or another mounted filesystem has tens of gigabytes available. Installing Flutter in one place while Android SDK components, Pub packages, Gradle caches, project working trees, and NDK downloads quietly fill `$HOME` defeats the point of moving Flutter at all.
 
 `flenv` aims to make the storage boundary explicit and reproducible.
 
@@ -94,7 +95,7 @@ Initial scope:
 - `flenv install`
 - named environments
 - configurable environment root
-- isolated cache/SDK paths
+- isolated cache/SDK/workspace paths
 - shell activation
 - `flenv list`
 - `flenv doctor`
