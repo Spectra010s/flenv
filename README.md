@@ -23,7 +23,7 @@ Early development. The repository is private while the first usable version is b
 ## Proposed CLI
 
 ```sh
-# Interactive installation
+# Interactive/default installation
 flenv install
 
 # Put the heavy environment on a specific filesystem
@@ -36,7 +36,7 @@ flenv install --root /tmp --name stable --isolated
 # Environment management
 flenv list
 flenv use stable
-flenv env stable
+eval "$(flenv env stable)"
 flenv doctor
 ```
 
@@ -44,29 +44,40 @@ flenv doctor
 
 ## Environment model
 
-By default, flenv keeps lightweight metadata under:
+flenv separates lightweight metadata from environment data. `FLENV_HOME` defaults to `~/.flenv`, while the heavy environment can live elsewhere.
+
+By default:
 
 ```text
 ~/.flenv/
 ├── config
+├── active
+├── records/
 └── environments/
-    ├── stable/
-    ├── flutter-3.47/
-    └── android-test/
+    └── default/
 ```
 
-The actual environment root can live elsewhere. For example, an isolated environment rooted at `/tmp/flutter-dev` may contain:
+`--root` selects a **storage base**, not an arbitrary final environment path. flenv creates its own namespace beneath external roots. For example:
+
+```sh
+flenv install --root /tmp --name stable --isolated
+```
+
+uses:
 
 ```text
-/tmp/flutter-dev/
+/tmp/flenv/environments/stable/
 ├── flutter/
 ├── android-sdk/
-├── pub-cache/
-├── gradle/
-└── workspaces/
+├── cache/
+│   ├── pub/
+│   └── gradle/
+└── state/
 ```
 
-The exact layout is still part of the v0.1 design and may change before the first release.
+User projects are not placed inside or owned by flenv environments.
+
+The full v0.1 storage, isolation, activation, ephemeral-root, and removal semantics are documented in [`docs/environment-model.md`](docs/environment-model.md).
 
 ## Why flenv?
 
@@ -99,4 +110,4 @@ Initial scope:
 
 ## Development
 
-Development will be issue-driven. `main` should describe the current usable state; implementation work happens on focused branches and lands through pull requests.
+Development is issue-driven. `main` describes the current usable state; implementation work happens on focused branches and lands through pull requests.
