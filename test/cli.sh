@@ -2,7 +2,6 @@
 set -Eeuo pipefail
 
 ROOT="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-FLENV="$ROOT/bin/flenv"
 TEST_ROOT="$(mktemp -d)"
 trap 'rm -rf -- "$TEST_ROOT"' EXIT
 
@@ -25,19 +24,57 @@ assert_contains() {
   [[ "$haystack" == *"$needle"* ]] || fail "expected output to contain: $needle"
 }
 
-version="$($FLENV --version)"
+# Load the CLI modules directly so these foundation tests can replace the
+# heavyweight network provisioning functions with local stubs. Provisioning
+# itself is tested separately; these assertions cover CLI/layout behaviour.
+# shellcheck source=../lib/core.sh
+source "$ROOT/lib/core.sh"
+# shellcheck source=../lib/provision.sh
+source "$ROOT/lib/provision.sh"
+# shellcheck source=../lib/flutter.sh
+source "$ROOT/lib/flutter.sh"
+# shellcheck source=../lib/android.sh
+source "$ROOT/lib/android.sh"
+# shellcheck source=../lib/commands/install.sh
+source "$ROOT/lib/commands/install.sh"
+# shellcheck source=../lib/commands/list.sh
+source "$ROOT/lib/commands/list.sh"
+# shellcheck source=../lib/commands/doctor.sh
+source "$ROOT/lib/commands/doctor.sh"
+
+flenv_provision_flutter() {
+  local environment="$1"
+  mkdir -p -- "$environment/flutter"
+  flenv_mark_component_ready "$environment" flutter
+}
+
+flenv_provision_android() {
+  local environment="$1"
+  mkdir -p -- "$environment/android-sdk"
+  flenv_mark_component_ready "$environment" android
+}
+
+flenv_android_licenses() {
+  return 0
+}
+
+run_install() {
+  flenv_install "$@"
+}
+
+version="$("$ROOT/bin/flenv" --version)"
 assert_contains "$version" "flenv 0.1.0-dev"
 
-help="$($FLENV --help)"
+help="$("$ROOT/bin/flenv" --help)"
 assert_contains "$help" "flenv install"
 
-$FLENV install --name local >/dev/null
+run_install --name local >/dev/null
 assert_dir "$FLENV_HOME/environments/local/flutter"
 assert_dir "$FLENV_HOME/environments/local/android-sdk"
 [[ ! -e "$FLENV_HOME/environments/local/workspace" ]] || fail "non-isolated install created workspace"
 
 EXTERNAL="$TEST_ROOT/storage"
-$FLENV install --root "$EXTERNAL" --name isolated --isolated >/dev/null
+run_install --root "$EXTERNAL" --name isolated --isolated >/dev/null
 ENV="$EXTERNAL/flenv/environments/isolated"
 assert_dir "$ENV/flutter"
 assert_dir "$ENV/android-sdk"
@@ -46,19 +83,19 @@ assert_dir "$ENV/cache/gradle"
 assert_dir "$ENV/workspace"
 assert_dir "$ENV/state"
 
-list="$($FLENV list)"
+list="$(flenv_list)"
 assert_contains "$list" "local"
 assert_contains "$list" "isolated"
 assert_contains "$list" "$ENV"
 
-if $FLENV install --name '../escape' >/dev/null 2>&1; then
+if run_install --name '../escape' >/dev/null 2>&1; then
   fail "path traversal name was accepted"
 fi
 
-if $FLENV install --name 'bad/name' >/dev/null 2>&1; then
+if run_install --name 'bad/name' >/dev/null 2>&1; then
   fail "slash in environment name was accepted"
 fi
 
-$FLENV doctor >/dev/null
+flenv_doctor >/dev/null
 
 printf 'PASS: CLI foundation\n'
