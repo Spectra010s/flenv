@@ -7,6 +7,12 @@ FLENV_ROOT_DIR="$(cd -P -- "$FLENV_BIN_DIR/.." && pwd)"
 
 # shellcheck source=../lib/core.sh
 source "$FLENV_ROOT_DIR/lib/core.sh"
+# shellcheck source=../lib/provision.sh
+source "$FLENV_ROOT_DIR/lib/provision.sh"
+# shellcheck source=../lib/flutter.sh
+source "$FLENV_ROOT_DIR/lib/flutter.sh"
+# shellcheck source=../lib/android.sh
+source "$FLENV_ROOT_DIR/lib/android.sh"
 # shellcheck source=../lib/commands/install.sh
 source "$FLENV_ROOT_DIR/lib/commands/install.sh"
 # shellcheck source=../lib/commands/list.sh
@@ -19,23 +25,24 @@ flenv_help() {
 flenv - lightweight Flutter environment manager
 
 Usage:
-  flenv install [--root DIR] [--name NAME] [--isolated]
+  flenv install [--root DIR] [--name NAME] [--isolated] [--skip-licenses]
   flenv list
   flenv doctor
   flenv --help
   flenv --version
 
 Commands:
-  install   Create a flenv environment skeleton
+  install   Create and provision a Flutter + Android environment
   list      List known environments
   doctor    Check host prerequisites and flenv metadata
 
 Options:
-  --root DIR    Store the environment below DIR/flenv/environments
-  --name NAME   Environment name (default: default)
-  --isolated    Keep caches and workspace inside the environment
-  -h, --help    Show help
-  -v, --version Show version
+  --root DIR      Store the environment below DIR/flenv/environments
+  --name NAME     Environment name (default: default)
+  --isolated      Keep caches and workspace inside the environment
+  --skip-licenses Skip interactive Android license review for this run
+  -h, --help      Show help
+  -v, --version   Show version
 EOF
 }
 
