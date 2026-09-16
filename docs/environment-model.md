@@ -18,7 +18,7 @@ It is intentionally lightweight and may contain configuration, the active enviro
 
 ### Environment data
 
-An environment contains the heavy development toolchain and, when isolated, its caches. Environment data does not have to live under `FLENV_HOME`.
+An environment contains the heavy development toolchain and, when isolated, its caches and workspace. Environment data does not have to live under `FLENV_HOME`.
 
 The default environment base is:
 
@@ -85,10 +85,24 @@ An isolated v0.1 environment uses this layout:
 ├── cache/
 │   ├── pub/
 │   └── gradle/
+├── workspace/
 └── state/
 ```
 
-`state/` is reserved for environment-local flenv state that belongs with the toolchain. User Flutter projects are **not** stored inside the environment by default; flenv manages development toolchains, not source-code workspaces.
+`state/` is reserved for environment-local flenv state that belongs with the toolchain.
+
+`workspace/` is the environment's development workspace. It exists so users who deliberately move an isolated Flutter environment onto a larger or temporary filesystem can keep project working trees there too instead of consuming a constrained home partition.
+
+Multiple projects can live inside the single workspace:
+
+```text
+workspace/
+├── app-one/
+├── app-two/
+└── package-one/
+```
+
+flenv owns and creates the `workspace/` directory as part of an isolated environment, but **the projects inside it are user data**. That distinction affects destructive operations: SDKs and caches are reproducible environment data, while workspace contents must be protected.
 
 ## Metadata records
 
@@ -110,7 +124,7 @@ If an external or ephemeral environment disappears, the record may remain. Comma
 
 ## Isolation
 
-`--isolated` means storage-heavy state controlled by the Flutter/Android command-line workflow is redirected into the selected environment wherever the upstream tools provide a supported mechanism.
+`--isolated` means storage-heavy state controlled by the Flutter/Android command-line workflow is redirected into the selected environment wherever the upstream tools provide a supported mechanism. It also creates the environment-local `workspace/` directory.
 
 Activation for an isolated environment sets at least:
 
@@ -126,7 +140,7 @@ and prepends the relevant Flutter and Android tool directories to `PATH`.
 
 flenv should not invent unsupported environment variables merely to claim perfect isolation. If an upstream tool stores unavoidable state elsewhere, `flenv doctor` should make that limitation visible.
 
-Without `--isolated`, Flutter and Android SDK payloads still live in the selected environment, but normal user-level caches may use their upstream defaults. This mode is useful when users want multiple SDK locations without duplicating every cache.
+Without `--isolated`, Flutter and Android SDK payloads still live in the selected environment, but normal user-level caches may use their upstream defaults and flenv does not require projects to use an environment-local workspace. This mode is useful when users want multiple SDK locations without duplicating every cache.
 
 ## Activation semantics
 
@@ -155,11 +169,22 @@ When a user explicitly installs under `/tmp` and that directory later disappears
 - `flenv doctor` should explain that the recorded environment root no longer exists;
 - reinstalling the same named environment may recreate it after explicit confirmation or according to non-interactive flags.
 
+For isolated environments on ephemeral storage, the workspace is ephemeral too. flenv must make this clear because project files in that workspace disappear with the underlying filesystem.
+
 ## Removal safety
 
 flenv may recursively remove only directories that it can prove are managed environment directories. Removal must validate both the metadata record and the expected flenv environment layout before deleting recursively.
 
-`flenv remove` must never recursively delete the value supplied to `--root` itself. For example, removing an environment installed with `--root /mnt` may delete `/mnt/flenv/environments/stable`; it must never delete `/mnt`.
+`flenv remove` must never recursively delete the value supplied to `--root` itself. For example, removing an environment installed with `--root /mnt` may operate on `/mnt/flenv/environments/stable`; it must never delete `/mnt`.
+
+For an isolated environment:
+
+- an empty `workspace/` may be removed with the environment;
+- a non-empty `workspace/` must block normal destructive removal;
+- deleting a non-empty workspace requires a separate explicit destructive confirmation/force path;
+- flenv should offer or support preserving the workspace while removing reproducible SDK/cache state.
+
+This prevents a normal environment cleanup from being equivalent to deleting source repositories.
 
 ## v0.1 invariants
 
@@ -167,7 +192,8 @@ flenv may recursively remove only directories that it can prove are managed envi
 2. `--root` means a storage base; flenv creates its own namespace beneath it.
 3. Environment names never act as arbitrary filesystem paths.
 4. `/tmp` and other ephemeral storage are opt-in.
-5. `--isolated` redirects Pub and Gradle caches as well as SDK payloads.
-6. Activation is explicit and shell-correct; flenv does not silently edit shell startup files.
-7. Missing external environments are detected rather than hidden.
-8. flenv does not own or delete user project directories.
+5. `--isolated` redirects Pub and Gradle caches as well as SDK payloads and creates an environment-local `workspace/`.
+6. flenv owns the workspace directory structure, but projects inside it are protected user data.
+7. Activation is explicit and shell-correct; flenv does not silently edit shell startup files.
+8. Missing external environments are detected rather than hidden.
+9. Normal environment removal must not delete a non-empty workspace.
