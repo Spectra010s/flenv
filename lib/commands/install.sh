@@ -2,18 +2,57 @@
 
 flenv_install_help() {
 	cat <<'EOF'
-Usage: flenv install [--root DIR] [--name NAME] [--isolated] [--skip-licenses]
+Usage: flenv install [--root DIR] [--name NAME] [--isolated]
 
 Creates a flenv environment and provisions Flutter plus the Android command-line SDK.
-Android license acceptance is interactive unless --skip-licenses is supplied.
 EOF
+}
+
+flenv_validate_environment() {
+	local environment="$1"
+	local flutter="$environment/flutter/bin/flutter"
+	local sdk="$environment/android-sdk"
+	local java_home flutter_home doctor_output
+
+	rm -f -- "$environment/state/environment.ready"
+
+	[[ -x "$flutter" ]] || flenv_die "Flutter is not installed in the environment"
+	[[ -x "$sdk/platform-tools/adb" ]] || flenv_die "Android platform-tools are not installed in the environment"
+
+	if [[ -f "$environment/state/java-home" ]]; then
+		java_home="$(<"$environment/state/java-home")"
+	fi
+	if [[ -z "${java_home:-}" || ! -x "$java_home/bin/java" ]]; then
+		java_home="$(flenv_detect_java)"
+	fi
+
+	flutter_home="$environment/state/flutter-home"
+	mkdir -p -- "$flutter_home"
+
+	HOME="$flutter_home" JAVA_HOME="$java_home" ANDROID_HOME="$sdk" ANDROID_SDK_ROOT="$sdk" \
+		"$flutter" config --android-sdk "$sdk" >/dev/null || flenv_die "cannot configure Flutter Android SDK"
+	HOME="$flutter_home" JAVA_HOME="$java_home" ANDROID_HOME="$sdk" ANDROID_SDK_ROOT="$sdk" \
+		"$flutter" config --jdk-dir "$java_home" >/dev/null || flenv_die "cannot configure Flutter JDK"
+
+	if ! doctor_output="$(HOME="$flutter_home" JAVA_HOME="$java_home" ANDROID_HOME="$sdk" ANDROID_SDK_ROOT="$sdk" \
+		"$flutter" doctor -v 2>&1)"; then
+		printf '%s\n' "$doctor_output" >&2
+		flenv_die "Flutter doctor failed"
+	fi
+
+	if ! grep -Eq '^\[✓\] Android toolchain' <<<"$doctor_output"; then
+		printf '%s\n' "$doctor_output" >&2
+		flenv_die "Flutter Android toolchain validation failed"
+	fi
+
+	printf '%s\n' "$java_home" >"$environment/state/java-home"
+	flenv_mark_component_ready "$environment" environment
 }
 
 flenv_install() {
 	local root=""
 	local name="default"
 	local isolated="false"
-	local skip_licenses="false"
 
 	while (($#)); do
 		case "$1" in
@@ -29,10 +68,6 @@ flenv_install() {
 			;;
 		--isolated)
 			isolated="true"
-			shift
-			;;
-		--skip-licenses)
-			skip_licenses="true"
 			shift
 			;;
 		-h | --help)
@@ -75,12 +110,7 @@ flenv_install() {
 
 	flenv_provision_flutter "$environment"
 	flenv_provision_android "$environment"
-
-	if [[ "$skip_licenses" == "false" ]]; then
-		flenv_android_licenses "$environment"
-	else
-		flenv_info "Android license review skipped; run provisioning again without --skip-licenses before building"
-	fi
+	flenv_validate_environment "$environment"
 
 	printf 'Environment %s is provisioned.\n' "$name"
 	printf 'Path: %s\n' "$environment"
