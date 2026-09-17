@@ -56,8 +56,8 @@ flenv_provision_android() {
 	flenv_mark_component_ready "$environment" android
 }
 
-flenv_android_licenses() {
-	return 0
+flenv_validate_environment() {
+	flenv_mark_component_ready "$1" environment
 }
 
 run_install() {
@@ -71,9 +71,11 @@ help="$("$ROOT/bin/flenv" --help)"
 assert_contains "$help" "flenv install"
 
 run_install --name local >/dev/null
-assert_dir "$FLENV_HOME/environments/local/flutter"
-assert_dir "$FLENV_HOME/environments/local/android-sdk"
-[[ ! -e "$FLENV_HOME/environments/local/workspace" ]] || fail "non-isolated install created workspace"
+LOCAL="$FLENV_HOME/environments/local"
+assert_dir "$LOCAL/flutter"
+assert_dir "$LOCAL/android-sdk"
+[[ -f "$LOCAL/state/environment.ready" ]] || fail "validated environment was not marked ready"
+[[ ! -e "$LOCAL/workspace" ]] || fail "non-isolated install created workspace"
 
 EXTERNAL="$TEST_ROOT/storage"
 run_install --root "$EXTERNAL" --name isolated --isolated >/dev/null
@@ -84,11 +86,17 @@ assert_dir "$ENV/cache/pub"
 assert_dir "$ENV/cache/gradle"
 assert_dir "$ENV/workspace"
 assert_dir "$ENV/state"
+[[ -f "$ENV/state/environment.ready" ]] || fail "isolated environment was not marked ready"
 
 list="$(flenv_list)"
 assert_contains "$list" "local"
 assert_contains "$list" "isolated"
 assert_contains "$list" "$ENV"
+assert_contains "$list" "ready"
+
+rm -f -- "$ENV/state/environment.ready"
+list="$(flenv_list)"
+assert_contains "$list" "incomplete"
 
 # flenv_die intentionally exits. Run expected-failure cases in subshells so
 # their exit status can be asserted without terminating this test process.
