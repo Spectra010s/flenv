@@ -88,11 +88,13 @@ assert_contains "$list" "local"
 assert_contains "$list" "isolated"
 assert_contains "$list" "$ENV"
 
-if run_install --name '../escape' >/dev/null 2>&1; then
+# flenv_die intentionally exits. Run expected-failure cases in subshells so
+# their exit status can be asserted without terminating this test process.
+if (run_install --name '../escape' >/dev/null 2>&1); then
 	fail "path traversal name was accepted"
 fi
 
-if run_install --name 'bad/name' >/dev/null 2>&1; then
+if (run_install --name 'bad/name' >/dev/null 2>&1); then
 	fail "slash in environment name was accepted"
 fi
 
