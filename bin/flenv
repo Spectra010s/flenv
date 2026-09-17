@@ -27,7 +27,7 @@ flenv_help() {
 flenv - lightweight Flutter environment manager
 
 Usage:
-  flenv install [--root DIR] [--name NAME] [--isolated] [--skip-licenses]
+  flenv install [--root DIR] [--name NAME] [--isolated]
   flenv list
   flenv doctor
   flenv --help
@@ -39,12 +39,11 @@ Commands:
   doctor    Check host prerequisites and flenv metadata
 
 Options:
-  --root DIR      Store the environment below DIR/flenv/environments
-  --name NAME     Environment name (default: default)
-  --isolated      Keep caches and workspace inside the environment
-  --skip-licenses Skip interactive Android license review for this run
-  -h, --help      Show help
-  -v, --version   Show version
+  --root DIR    Store the environment below DIR/flenv/environments
+  --name NAME   Environment name (default: default)
+  --isolated    Keep caches and workspace inside the environment
+  -h, --help    Show help
+  -v, --version Show version
 EOF
 }
 
