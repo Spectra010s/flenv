@@ -1,79 +1,121 @@
 #!/usr/bin/env bash
 
 flenv_install_help() {
-  cat <<'EOF'
+	cat <<'EOF'
 Usage: flenv install [--root DIR] [--name NAME] [--isolated]
 
-Creates the directory and metadata skeleton for a flenv environment.
-SDK provisioning is implemented separately.
+Creates a flenv environment and provisions Flutter plus the Android command-line SDK.
 EOF
 }
 
+flenv_validate_environment() {
+	local environment="$1"
+	local flutter="$environment/flutter/bin/flutter"
+	local sdk="$environment/android-sdk"
+	local java_home flutter_home doctor_output
+
+	rm -f -- "$environment/state/environment.ready"
+
+	[[ -x "$flutter" ]] || flenv_die "Flutter is not installed in the environment"
+	[[ -x "$sdk/platform-tools/adb" ]] || flenv_die "Android platform-tools are not installed in the environment"
+
+	if [[ -f "$environment/state/java-home" ]]; then
+		java_home="$(<"$environment/state/java-home")"
+	fi
+	if [[ -z "${java_home:-}" || ! -x "$java_home/bin/java" ]]; then
+		java_home="$(flenv_detect_java)"
+	fi
+
+	flutter_home="$environment/state/flutter-home"
+	mkdir -p -- "$flutter_home"
+
+	HOME="$flutter_home" JAVA_HOME="$java_home" ANDROID_HOME="$sdk" ANDROID_SDK_ROOT="$sdk" \
+		"$flutter" config --android-sdk "$sdk" >/dev/null || flenv_die "cannot configure Flutter Android SDK"
+	HOME="$flutter_home" JAVA_HOME="$java_home" ANDROID_HOME="$sdk" ANDROID_SDK_ROOT="$sdk" \
+		"$flutter" config --jdk-dir "$java_home" >/dev/null || flenv_die "cannot configure Flutter JDK"
+
+	if ! doctor_output="$(HOME="$flutter_home" JAVA_HOME="$java_home" ANDROID_HOME="$sdk" ANDROID_SDK_ROOT="$sdk" \
+		"$flutter" doctor -v 2>&1)"; then
+		printf '%s\n' "$doctor_output" >&2
+		flenv_die "Flutter doctor failed"
+	fi
+
+	if ! grep -Eq '^\[✓\] Android toolchain' <<<"$doctor_output"; then
+		printf '%s\n' "$doctor_output" >&2
+		flenv_die "Flutter Android toolchain validation failed"
+	fi
+
+	printf '%s\n' "$java_home" >"$environment/state/java-home"
+	flenv_mark_component_ready "$environment" environment
+}
+
 flenv_install() {
-  local root=""
-  local name="default"
-  local isolated="false"
+	local root=""
+	local name="default"
+	local isolated="false"
 
-  while (($#)); do
-    case "$1" in
-      --root)
-        (($# >= 2)) || flenv_die "--root requires a directory"
-        root="$2"
-        shift 2
-        ;;
-      --name)
-        (($# >= 2)) || flenv_die "--name requires a value"
-        name="$2"
-        shift 2
-        ;;
-      --isolated)
-        isolated="true"
-        shift
-        ;;
-      -h|--help)
-        flenv_install_help
-        return 0
-        ;;
-      *)
-        flenv_die "unknown install option: $1"
-        ;;
-    esac
-  done
+	while (($#)); do
+		case "$1" in
+		--root)
+			(($# >= 2)) || flenv_die "--root requires a directory"
+			root="$2"
+			shift 2
+			;;
+		--name)
+			(($# >= 2)) || flenv_die "--name requires a value"
+			name="$2"
+			shift 2
+			;;
+		--isolated)
+			isolated="true"
+			shift
+			;;
+		-h | --help)
+			flenv_install_help
+			return 0
+			;;
+		*)
+			flenv_die "unknown install option: $1"
+			;;
+		esac
+	done
 
-  flenv_require_linux
-  flenv_validate_name "$name"
-  flenv_prepare_home
+	flenv_require_linux
+	flenv_validate_name "$name"
+	flenv_prepare_home
 
-  if [[ -n "$root" ]]; then
-    mkdir -p -- "$root" || flenv_die "cannot create root: $root"
-    [[ -d "$root" && -w "$root" ]] || flenv_die "root is not a writable directory: $root"
-    root="$(cd -P -- "$root" && pwd)"
-  fi
+	if [[ -n "$root" ]]; then
+		mkdir -p -- "$root" || flenv_die "cannot create root: $root"
+		[[ -d "$root" && -w "$root" ]] || flenv_die "root is not a writable directory: $root"
+		root="$(cd -P -- "$root" && pwd)"
+	fi
 
-  local environment
-  environment="$(flenv_environment_path "$name" "$root")"
+	local environment
+	environment="$(flenv_environment_path "$name" "$root")"
 
-  if [[ -e "$environment" ]]; then
-    flenv_die "environment already exists: $environment"
-  fi
+	if [[ ! -e "$environment" ]]; then
+		mkdir -p -- "$environment/flutter" "$environment/android-sdk" "$environment/state" ||
+			flenv_die "cannot create environment: $environment"
 
-  mkdir -p -- "$environment/flutter" "$environment/android-sdk" "$environment/state" || \
-    flenv_die "cannot create environment: $environment"
+		if [[ "$isolated" == "true" ]]; then
+			mkdir -p -- \
+				"$environment/cache/pub" \
+				"$environment/cache/gradle" \
+				"$environment/workspace" || flenv_die "cannot create isolated environment layout"
+		fi
+		flenv_write_record "$name" "$environment" "$isolated"
+	else
+		flenv_info "resuming existing environment: $environment"
+	fi
 
-  if [[ "$isolated" == "true" ]]; then
-    mkdir -p -- \
-      "$environment/cache/pub" \
-      "$environment/cache/gradle" \
-      "$environment/workspace" || flenv_die "cannot create isolated environment layout"
-  fi
+	flenv_provision_flutter "$environment"
+	flenv_provision_android "$environment"
+	flenv_validate_environment "$environment"
 
-  flenv_write_record "$name" "$environment" "$isolated"
-
-  printf 'Created environment %s\n' "$name"
-  printf 'Path: %s\n' "$environment"
-  printf 'Isolated: %s\n' "$isolated"
-
-  if [[ "$isolated" == "true" ]]; then
-    printf 'Workspace: %s/workspace\n' "$environment"
-  fi
+	printf 'Environment %s is provisioned.\n' "$name"
+	printf 'Path: %s\n' "$environment"
+	printf 'Isolated: %s\n' "$isolated"
+	if [[ "$isolated" == "true" ]]; then
+		printf 'Workspace: %s/workspace\n' "$environment"
+	fi
 }
