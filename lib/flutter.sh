@@ -5,9 +5,9 @@ FLENV_FLUTTER_STORAGE_URL="https://storage.googleapis.com/flutter_infra_release/
 
 flenv_flutter_arch() {
   case "$(uname -m)" in
-    x86_64|amd64) printf 'x64\n' ;;
-    aarch64|arm64) printf 'arm64\n' ;;
-    *) flenv_die "unsupported Flutter Linux architecture: $(uname -m)" ;;
+  x86_64 | amd64) printf 'x64\n' ;;
+  aarch64 | arm64) printf 'arm64\n' ;;
+  *) flenv_die "unsupported Flutter Linux architecture: $(uname -m)" ;;
   esac
 }
 
