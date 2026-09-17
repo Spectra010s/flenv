@@ -85,5 +85,7 @@ flenv_install() {
 	printf 'Environment %s is provisioned.\n' "$name"
 	printf 'Path: %s\n' "$environment"
 	printf 'Isolated: %s\n' "$isolated"
-	[[ "$isolated" == "true" ]] && printf 'Workspace: %s/workspace\n' "$environment"
+	if [[ "$isolated" == "true" ]]; then
+		printf 'Workspace: %s/workspace\n' "$environment"
+	fi
 }
