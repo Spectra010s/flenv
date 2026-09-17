@@ -52,14 +52,3 @@ flenv_provision_android() {
 	flenv_mark_component_ready "$environment" android
 	flenv_info "Android SDK provisioning complete"
 }
-
-flenv_android_licenses() {
-	local environment="$1"
-	local sdk="$environment/android-sdk"
-	local sdkmanager="$sdk/cmdline-tools/latest/bin/sdkmanager"
-	local java_home
-	[[ -x "$sdkmanager" ]] || flenv_die "Android command-line tools are not installed"
-	java_home="$(flenv_detect_java)"
-	flenv_info "Android licenses require your review and acceptance"
-	JAVA_HOME="$java_home" "$sdkmanager" --sdk_root="$sdk" --licenses
-}
