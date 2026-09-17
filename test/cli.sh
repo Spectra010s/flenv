@@ -10,18 +10,18 @@ export FLENV_HOME="$HOME/.flenv"
 mkdir -p "$HOME"
 
 fail() {
-  printf 'FAIL: %s\n' "$*" >&2
-  exit 1
+	printf 'FAIL: %s\n' "$*" >&2
+	exit 1
 }
 
 assert_dir() {
-  [[ -d "$1" ]] || fail "expected directory: $1"
+	[[ -d "$1" ]] || fail "expected directory: $1"
 }
 
 assert_contains() {
-  local haystack="$1"
-  local needle="$2"
-  [[ "$haystack" == *"$needle"* ]] || fail "expected output to contain: $needle"
+	local haystack="$1"
+	local needle="$2"
+	[[ "$haystack" == *"$needle"* ]] || fail "expected output to contain: $needle"
 }
 
 # Load the CLI modules directly so these foundation tests can replace the
@@ -43,23 +43,23 @@ source "$ROOT/lib/commands/list.sh"
 source "$ROOT/lib/commands/doctor.sh"
 
 flenv_provision_flutter() {
-  local environment="$1"
-  mkdir -p -- "$environment/flutter"
-  flenv_mark_component_ready "$environment" flutter
+	local environment="$1"
+	mkdir -p -- "$environment/flutter"
+	flenv_mark_component_ready "$environment" flutter
 }
 
 flenv_provision_android() {
-  local environment="$1"
-  mkdir -p -- "$environment/android-sdk"
-  flenv_mark_component_ready "$environment" android
+	local environment="$1"
+	mkdir -p -- "$environment/android-sdk"
+	flenv_mark_component_ready "$environment" android
 }
 
 flenv_android_licenses() {
-  return 0
+	return 0
 }
 
 run_install() {
-  flenv_install "$@"
+	flenv_install "$@"
 }
 
 version="$("$ROOT/bin/flenv" --version)"
@@ -89,11 +89,11 @@ assert_contains "$list" "isolated"
 assert_contains "$list" "$ENV"
 
 if run_install --name '../escape' >/dev/null 2>&1; then
-  fail "path traversal name was accepted"
+	fail "path traversal name was accepted"
 fi
 
 if run_install --name 'bad/name' >/dev/null 2>&1; then
-  fail "slash in environment name was accepted"
+	fail "slash in environment name was accepted"
 fi
 
 flenv_doctor >/dev/null
