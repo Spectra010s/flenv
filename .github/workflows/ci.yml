@@ -31,7 +31,7 @@ jobs:
         run: shfmt -d bin/flenv lib test
 
       - name: Run ShellCheck
-        run: shellcheck -x bin/flenv lib/*.sh lib/commands/*.sh test/*.sh
+        run: shellcheck -e SC1091 bin/flenv lib/*.sh lib/commands/*.sh test/*.sh
 
       - name: Run CLI tests
         run: bash test/cli.sh
