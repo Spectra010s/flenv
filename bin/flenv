@@ -11,6 +11,8 @@ source "$FLENV_ROOT_DIR/lib/core.sh"
 source "$FLENV_ROOT_DIR/lib/provision.sh"
 # shellcheck source=../lib/flutter.sh
 source "$FLENV_ROOT_DIR/lib/flutter.sh"
+# shellcheck source=../lib/java.sh
+source "$FLENV_ROOT_DIR/lib/java.sh"
 # shellcheck source=../lib/android.sh
 source "$FLENV_ROOT_DIR/lib/android.sh"
 # shellcheck source=../lib/commands/install.sh
