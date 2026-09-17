@@ -33,6 +33,8 @@ source "$ROOT/lib/core.sh"
 source "$ROOT/lib/provision.sh"
 # shellcheck source=../lib/flutter.sh
 source "$ROOT/lib/flutter.sh"
+# shellcheck source=../lib/java.sh
+source "$ROOT/lib/java.sh"
 # shellcheck source=../lib/android.sh
 source "$ROOT/lib/android.sh"
 # shellcheck source=../lib/commands/install.sh
@@ -96,6 +98,25 @@ fi
 
 if (run_install --name 'bad/name' >/dev/null 2>&1); then
 	fail "slash in environment name was accepted"
+fi
+
+JAVA_FIXTURE="$TEST_ROOT/jdk"
+mkdir -p "$JAVA_FIXTURE/bin"
+cat >"$JAVA_FIXTURE/bin/java" <<'EOF'
+#!/usr/bin/env bash
+printf 'openjdk version "21.0.1" 2023-10-17\n' >&2
+EOF
+chmod +x "$JAVA_FIXTURE/bin/java"
+java_home="$(JAVA_HOME="$JAVA_FIXTURE" flenv_detect_java)"
+[[ "$java_home" == "$JAVA_FIXTURE" ]] || fail "JAVA_HOME JDK was not selected"
+
+cat >"$JAVA_FIXTURE/bin/java" <<'EOF'
+#!/usr/bin/env bash
+printf 'openjdk version "11.0.24" 2024-07-16\n' >&2
+EOF
+chmod +x "$JAVA_FIXTURE/bin/java"
+if (JAVA_HOME="$JAVA_FIXTURE" flenv_detect_java >/dev/null 2>&1); then
+	fail "Java older than 17 was accepted"
 fi
 
 flenv_doctor >/dev/null
