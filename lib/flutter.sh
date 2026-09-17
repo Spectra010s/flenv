@@ -53,7 +53,10 @@ flenv_provision_flutter() {
 	extract_dir="$staging/extracted"
 	rm -rf -- "$extract_dir"
 	mkdir -p -- "$extract_dir"
-	tar -xf "$bundle" -C "$extract_dir" || flenv_die "Flutter SDK extraction failed"
+	# SDK archives carry ownership metadata that cannot always be restored in
+	# containers and other unprivileged environments. flenv owns the extracted
+	# environment, so preserve the current user's ownership instead.
+	tar --no-same-owner -xf "$bundle" -C "$extract_dir" || flenv_die "Flutter SDK extraction failed"
 	[[ -x "$extract_dir/flutter/bin/flutter" ]] || flenv_die "Flutter archive did not contain a valid SDK"
 
 	rm -rf -- "$environment/flutter"
