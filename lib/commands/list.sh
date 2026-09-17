@@ -15,10 +15,12 @@ flenv_list() {
 		path="$(flenv_read_record_value "$record" path || true)"
 		isolated="$(flenv_read_record_value "$record" isolated || printf 'false')"
 
-		if [[ -n "$path" && -d "$path" ]]; then
+		if [[ -z "$path" || ! -d "$path" ]]; then
+			status="missing"
+		elif flenv_component_ready "$path" environment; then
 			status="ready"
 		else
-			status="missing"
+			status="incomplete"
 		fi
 
 		if [[ "$isolated" == "true" ]]; then
