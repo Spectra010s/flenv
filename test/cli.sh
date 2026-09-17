@@ -9,7 +9,10 @@ export HOME="$TEST_ROOT/home"
 export FLENV_HOME="$HOME/.flenv"
 mkdir -p "$HOME"
 
-fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+fail() {
+	printf 'FAIL: %s\n' "$*" >&2
+	exit 1
+}
 assert_dir() { [[ -d "$1" ]] || fail "expected directory: $1"; }
 assert_contains() { [[ "$1" == *"$2"* ]] || fail "expected output to contain: $2"; }
 
@@ -22,8 +25,14 @@ source "$ROOT/lib/commands/install.sh"
 source "$ROOT/lib/commands/list.sh"
 source "$ROOT/lib/commands/doctor.sh"
 
-flenv_provision_flutter() { mkdir -p -- "$1/flutter"; flenv_mark_component_ready "$1" flutter; }
-flenv_provision_android() { mkdir -p -- "$1/android-sdk"; flenv_mark_component_ready "$1" android; }
+flenv_provision_flutter() {
+	mkdir -p -- "$1/flutter"
+	flenv_mark_component_ready "$1" flutter
+}
+flenv_provision_android() {
+	mkdir -p -- "$1/android-sdk"
+	flenv_mark_component_ready "$1" android
+}
 flenv_validate_environment() { flenv_mark_component_ready "$1" environment; }
 run_install() { flenv_install "$@"; }
 
