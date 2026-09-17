@@ -29,14 +29,14 @@ flenv - lightweight Flutter environment manager
 Usage:
   flenv install [--root DIR] [--name NAME] [--isolated]
   flenv list
-  flenv doctor
+  flenv doctor [--name NAME] [-v|--verbose]
   flenv --help
   flenv --version
 
 Commands:
   install   Create and provision a Flutter + Android environment
   list      List known environments
-  doctor    Check host prerequisites and flenv metadata
+  doctor    Diagnose a managed Flutter environment
 
 Options:
   --root DIR    Store the environment below DIR/flenv/environments
@@ -44,6 +44,10 @@ Options:
   --isolated    Keep caches and workspace inside the environment
   -h, --help    Show help
   -v, --version Show version
+
+Doctor options:
+  --name NAME   Diagnose a named environment (default: default)
+  -v, --verbose Show resolved paths and readiness state
 EOF
 }
 
@@ -62,8 +66,7 @@ main() {
 		;;
 	doctor)
 		shift
-		(($# == 0)) || flenv_die "doctor does not accept arguments"
-		flenv_doctor
+		flenv_doctor "$@"
 		;;
 	-h | --help | help | "")
 		flenv_help
