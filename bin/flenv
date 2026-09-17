@@ -21,7 +21,7 @@ source "$FLENV_ROOT_DIR/lib/commands/list.sh"
 source "$FLENV_ROOT_DIR/lib/commands/doctor.sh"
 
 flenv_help() {
-  cat <<'EOF'
+	cat <<'EOF'
 flenv - lightweight Flutter environment manager
 
 Usage:
@@ -47,33 +47,33 @@ EOF
 }
 
 main() {
-  local command="${1:-}"
+	local command="${1:-}"
 
-  case "$command" in
-    install)
-      shift
-      flenv_install "$@"
-      ;;
-    list)
-      shift
-      (($# == 0)) || flenv_die "list does not accept arguments"
-      flenv_list
-      ;;
-    doctor)
-      shift
-      (($# == 0)) || flenv_die "doctor does not accept arguments"
-      flenv_doctor
-      ;;
-    -h|--help|help|"")
-      flenv_help
-      ;;
-    -v|--version|version)
-      printf 'flenv %s\n' "$FLENV_VERSION"
-      ;;
-    *)
-      flenv_die "unknown command: $command"
-      ;;
-  esac
+	case "$command" in
+	install)
+		shift
+		flenv_install "$@"
+		;;
+	list)
+		shift
+		(($# == 0)) || flenv_die "list does not accept arguments"
+		flenv_list
+		;;
+	doctor)
+		shift
+		(($# == 0)) || flenv_die "doctor does not accept arguments"
+		flenv_doctor
+		;;
+	-h | --help | help | "")
+		flenv_help
+		;;
+	-v | --version | version)
+		printf 'flenv %s\n' "$FLENV_VERSION"
+		;;
+	*)
+		flenv_die "unknown command: $command"
+		;;
+	esac
 }
 
 main "$@"
