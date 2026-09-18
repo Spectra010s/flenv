@@ -80,3 +80,27 @@ flenv_read_record_value() {
 	done <"$record"
 	return 1
 }
+
+flenv_selected_path() {
+	printf '%s/selected\n' "${FLENV_HOME%/}"
+}
+
+flenv_selected_name() {
+	local selected
+	selected="$(flenv_selected_path)"
+	[[ -f "$selected" ]] || return 1
+	IFS= read -r selected <"$selected"
+	[[ -n "$selected" ]] || return 1
+	printf '%s\n' "$selected"
+}
+
+flenv_resolve_environment() {
+	local name="$1"
+	local record path
+	flenv_validate_name "$name"
+	record="$(flenv_record_path "$name")"
+	[[ -f "$record" ]] || flenv_die "environment not found: $name"
+	path="$(flenv_read_record_value "$record" path || true)"
+	[[ -n "$path" && -d "$path" ]] || flenv_die "environment is missing: $name"
+	printf '%s\n' "$path"
+}
