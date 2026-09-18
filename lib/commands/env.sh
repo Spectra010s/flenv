@@ -25,7 +25,7 @@ flenv_env() {
 		printf 'export GRADLE_USER_HOME=%q\n' "$path/cache/gradle"
 	fi
 
-	printf 'export PATH=%q:%s\n' "$path/flutter/bin:$path/android-sdk/platform-tools:$path/android-sdk/cmdline-tools/latest/bin" '"$PATH"'
+	printf 'export PATH=%q:\x24PATH\n' "$path/flutter/bin:$path/android-sdk/platform-tools:$path/android-sdk/cmdline-tools/latest/bin"
 }
 
 flenv_use() {
