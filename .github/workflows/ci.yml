@@ -25,13 +25,13 @@ jobs:
       - name: Check Bash syntax
         run: |
           bash -n bin/flenv
-          find lib test -type f -name '*.sh' -print0 | xargs -0 -n1 bash -n
+          find lib shell test -type f -name '*.sh' -print0 | xargs -0 -n1 bash -n
 
       - name: Check formatting
-        run: shfmt -d bin/flenv lib test
+        run: shfmt -d bin/flenv lib shell test
 
       - name: Run ShellCheck
-        run: shellcheck -e SC1091 bin/flenv lib/*.sh lib/commands/*.sh test/*.sh
+        run: shellcheck -e SC1091 bin/flenv lib/*.sh lib/commands/*.sh shell/*.sh test/*.sh
 
       - name: Run CLI tests
         run: bash test/cli.sh
