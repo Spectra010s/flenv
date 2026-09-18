@@ -24,6 +24,7 @@ source "$ROOT/lib/android.sh"
 source "$ROOT/lib/commands/install.sh"
 source "$ROOT/lib/commands/list.sh"
 source "$ROOT/lib/commands/doctor.sh"
+source "$ROOT/lib/commands/env.sh"
 
 flenv_provision_flutter() {
 	mkdir -p -- "$1/flutter"
@@ -70,6 +71,28 @@ list="$(flenv_list)"
 assert_contains "$list" "incomplete"
 touch "$ENV/state/environment.ready"
 
+use_output="$(flenv_use isolated)"
+assert_contains "$use_output" "Selected environment: isolated"
+[[ "$(flenv_selected_name)" == "isolated" ]] || fail "selected environment was not persisted"
+
+list="$(flenv_list)"
+assert_contains "$list" "* isolated (isolated)"
+
+activation="$(flenv_env isolated)"
+assert_contains "$activation" "FLENV_ENV=isolated"
+assert_contains "$activation" "FLUTTER_ROOT="
+assert_contains "$activation" "$ENV/flutter"
+assert_contains "$activation" "ANDROID_HOME="
+assert_contains "$activation" "$ENV/android-sdk"
+assert_contains "$activation" "PUB_CACHE="
+assert_contains "$activation" "$ENV/cache/pub"
+assert_contains "$activation" "GRADLE_USER_HOME="
+assert_contains "$activation" "$ENV/cache/gradle"
+assert_contains "$activation" "PATH="
+
+if (flenv_use missing >/dev/null 2>&1); then fail "missing environment was selected"; fi
+if (flenv_env missing >/dev/null 2>&1); then fail "missing environment was activated"; fi
+
 if (run_install --name '../escape' >/dev/null 2>&1); then fail "path traversal name was accepted"; fi
 if (run_install --name 'bad/name' >/dev/null 2>&1); then fail "slash in environment name was accepted"; fi
 
@@ -111,7 +134,7 @@ EOF
 chmod +x "$JAVA_FIXTURE/bin/java"
 printf '%s\n' "$JAVA_FIXTURE" >"$ENV/state/java-home"
 
-doctor="$(flenv_doctor --name isolated)"
+doctor="$(flenv_doctor)"
 assert_contains "$doctor" "Environment: isolated"
 assert_contains "$doctor" "Java 21"
 assert_contains "$doctor" "Flutter 3.47.4"
