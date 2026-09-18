@@ -4,7 +4,9 @@ flenv_list() {
 	flenv_prepare_home
 
 	local found="false"
-	local record name path isolated status
+	local selected
+	selected="$(flenv_selected_name || true)"
+	local record name display_name path isolated status
 
 	printf '%-20s %-10s %s\n' "NAME" "STATUS" "PATH"
 
@@ -12,6 +14,7 @@ flenv_list() {
 	for record in "$FLENV_HOME"/records/*; do
 		found="true"
 		name="${record##*/}"
+		display_name="$name"
 		path="$(flenv_read_record_value "$record" path || true)"
 		isolated="$(flenv_read_record_value "$record" isolated || printf 'false')"
 
