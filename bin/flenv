@@ -7,6 +7,14 @@ FLENV_ROOT_DIR="$(cd -P -- "$FLENV_BIN_DIR/.." && pwd)"
 
 # shellcheck source=../lib/core.sh
 source "$FLENV_ROOT_DIR/lib/core.sh"
+# shellcheck source=../lib/provision.sh
+source "$FLENV_ROOT_DIR/lib/provision.sh"
+# shellcheck source=../lib/flutter.sh
+source "$FLENV_ROOT_DIR/lib/flutter.sh"
+# shellcheck source=../lib/java.sh
+source "$FLENV_ROOT_DIR/lib/java.sh"
+# shellcheck source=../lib/android.sh
+source "$FLENV_ROOT_DIR/lib/android.sh"
 # shellcheck source=../lib/commands/install.sh
 source "$FLENV_ROOT_DIR/lib/commands/install.sh"
 # shellcheck source=../lib/commands/list.sh
@@ -15,7 +23,7 @@ source "$FLENV_ROOT_DIR/lib/commands/list.sh"
 source "$FLENV_ROOT_DIR/lib/commands/doctor.sh"
 
 flenv_help() {
-  cat <<'EOF'
+	cat <<'EOF'
 flenv - lightweight Flutter environment manager
 
 Usage:
@@ -26,7 +34,7 @@ Usage:
   flenv --version
 
 Commands:
-  install   Create a flenv environment skeleton
+  install   Create and provision a Flutter + Android environment
   list      List known environments
   doctor    Check host prerequisites and flenv metadata
 
@@ -40,33 +48,33 @@ EOF
 }
 
 main() {
-  local command="${1:-}"
+	local command="${1:-}"
 
-  case "$command" in
-    install)
-      shift
-      flenv_install "$@"
-      ;;
-    list)
-      shift
-      (($# == 0)) || flenv_die "list does not accept arguments"
-      flenv_list
-      ;;
-    doctor)
-      shift
-      (($# == 0)) || flenv_die "doctor does not accept arguments"
-      flenv_doctor
-      ;;
-    -h|--help|help|"")
-      flenv_help
-      ;;
-    -v|--version|version)
-      printf 'flenv %s\n' "$FLENV_VERSION"
-      ;;
-    *)
-      flenv_die "unknown command: $command"
-      ;;
-  esac
+	case "$command" in
+	install)
+		shift
+		flenv_install "$@"
+		;;
+	list)
+		shift
+		(($# == 0)) || flenv_die "list does not accept arguments"
+		flenv_list
+		;;
+	doctor)
+		shift
+		(($# == 0)) || flenv_die "doctor does not accept arguments"
+		flenv_doctor
+		;;
+	-h | --help | help | "")
+		flenv_help
+		;;
+	-v | --version | version)
+		printf 'flenv %s\n' "$FLENV_VERSION"
+		;;
+	*)
+		flenv_die "unknown command: $command"
+		;;
+	esac
 }
 
 main "$@"
