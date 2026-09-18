@@ -52,7 +52,7 @@ Options:
   -v, --version Show version
 
 Doctor options:
-  --name NAME   Diagnose a named environment (default: default)
+  --name NAME   Diagnose a named environment (default: selected)
   -v, --verbose Show resolved paths and readiness state
 EOF
 }
