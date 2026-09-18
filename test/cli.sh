@@ -103,6 +103,20 @@ flenv use isolated >/dev/null
 if (flenv_use missing >/dev/null 2>&1); then fail "missing environment was selected"; fi
 if (flenv_env missing >/dev/null 2>&1); then fail "missing environment was activated"; fi
 
+# Missing records and stale paths fail without exports or selection changes.
+flenv_write_record stale "$TEST_ROOT/removed environment" true
+for name in missing stale; do
+	for action in env use; do
+		if output="$("$ROOT/bin/flenv" "$action" "$name" 2>"$TEST_ROOT/error")"; then fail "$action accepted $name"; fi
+		[[ -z "$output" ]] || fail "$action emitted output for $name"
+		[[ -s "$TEST_ROOT/error" ]] || fail "$action did not explain $name"
+	done
+	if output="$(flenv_env "$name" 2>/dev/null)"; then fail "sourced activation accepted $name"; fi
+	[[ -z "$output" ]] || fail "sourced activation emitted exports for $name"
+	if flenv use "$name" >/dev/null 2>&1; then fail "shell activation accepted $name"; fi
+	[[ "$FLENV_ENV" == isolated && "$(flenv_selected_name)" == isolated ]] || fail "failed activation changed selection"
+done
+
 if (run_install --name '../escape' >/dev/null 2>&1); then fail "path traversal name was accepted"; fi
 if (run_install --name 'bad/name' >/dev/null 2>&1); then fail "slash in environment name was accepted"; fi
 
@@ -170,5 +184,43 @@ assert_contains "$incomplete" "Environment has problems."
 
 if missing="$(flenv_doctor --name missing 2>&1)"; then fail "doctor accepted a missing environment"; fi
 assert_contains "$missing" "environment not found: missing"
+
+# Switching restores host settings and removes only managed PATH entries.
+(
+	export PATH="$ROOT/bin:$PATH"
+	source "$ROOT/shell/flenv.sh"
+	unset JAVA_HOME PUB_CACHE GRADLE_USER_HOME FLENV_ACTIVE_ROOT
+	for mode in unset custom; do
+		(
+			if [[ "$mode" == custom ]]; then
+				export JAVA_HOME="$TEST_ROOT/host java" PUB_CACHE="" GRADLE_USER_HOME="$TEST_ROOT/host gradle"
+			fi
+			mkdir -p "$ENV/state" "$TEST_ROOT/environment java"
+			printf '%s\n' "$TEST_ROOT/environment java" >"$ENV/state/java-home"
+			flenv use isolated >/dev/null
+			[[ "$JAVA_HOME" == "$TEST_ROOT/environment java" ]] || fail "environment Java was not activated"
+			[[ "$GRADLE_USER_HOME" == "$ENV/cache/gradle" ]] || fail "Gradle cache was not activated"
+			export PATH="$TEST_ROOT/user tools:$PATH:"
+			flenv use local >/dev/null
+			[[ "$FLUTTER_ROOT" == "$LOCAL/flutter" && "$ANDROID_HOME" == "$LOCAL/android-sdk" && "$ANDROID_SDK_ROOT" == "$LOCAL/android-sdk" ]] || fail "SDK paths were not switched"
+			[[ "$PATH" != *"$ENV/"* ]] || fail "previous environment remains on PATH"
+			[[ "$PATH" == *"$TEST_ROOT/user tools:"* && "$PATH" == *: ]] || fail "unrelated PATH entries were lost"
+			if [[ "$mode" == custom ]]; then
+				[[ "$JAVA_HOME" == "$TEST_ROOT/host java" && ${PUB_CACHE+x} && "$PUB_CACHE" == "" && "$GRADLE_USER_HOME" == "$TEST_ROOT/host gradle" ]] || fail "host settings were not restored"
+			else
+				[[ ! ${JAVA_HOME+x} && ! ${PUB_CACHE+x} && ! ${GRADLE_USER_HOME+x} ]] || fail "previous Java/cache settings leaked"
+			fi
+			flenv use isolated >/dev/null
+			[[ "$PATH" != *"$LOCAL/"* && "$PUB_CACHE" == "$ENV/cache/pub" ]] || fail "switching back failed"
+			previous_path="$PATH"
+			flenv use isolated >/dev/null
+			[[ "$PATH" == "$previous_path" ]] || fail "repeated activation duplicated PATH"
+			# Another shell's selection must not change this shell's activation.
+			bash -c 'source "$1/shell/flenv.sh"; flenv use local >/dev/null; [[ "$FLENV_ENV" == local ]]' bash "$ROOT" || fail "second shell could not activate independently"
+			[[ "$FLENV_ENV" == isolated && "$PUB_CACHE" == "$ENV/cache/pub" ]] || fail "another shell changed this activation"
+		)
+	done
+	rm "$ENV/state/java-home"
+)
 
 printf 'PASS: CLI foundation\n'

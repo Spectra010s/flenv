@@ -18,8 +18,10 @@ flenv() {
 			return 1
 		}
 
+		local activation
+		activation="$(command flenv env "$name")" || return
 		command flenv use "$name" || return
-		eval "$(command flenv env "$name")"
+		eval "$activation"
 		return
 	fi
 
