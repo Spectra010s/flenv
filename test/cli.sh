@@ -90,6 +90,16 @@ assert_contains "$activation" "GRADLE_USER_HOME="
 assert_contains "$activation" "$ENV/cache/gradle"
 assert_contains "$activation" "PATH="
 
+# The shell wrapper makes `flenv use` select and activate in the current shell.
+export PATH="$ROOT/bin:$PATH"
+# shellcheck source=../shell/flenv.sh
+source "$ROOT/shell/flenv.sh"
+flenv use isolated >/dev/null
+[[ "$FLENV_ENV" == "isolated" ]] || fail "flenv use did not activate the selected environment"
+[[ "$FLUTTER_ROOT" == "$ENV/flutter" ]] || fail "flenv use did not set FLUTTER_ROOT"
+[[ "$ANDROID_HOME" == "$ENV/android-sdk" ]] || fail "flenv use did not set ANDROID_HOME"
+[[ "$PUB_CACHE" == "$ENV/cache/pub" ]] || fail "flenv use did not set PUB_CACHE"
+
 if (flenv_use missing >/dev/null 2>&1); then fail "missing environment was selected"; fi
 if (flenv_env missing >/dev/null 2>&1); then fail "missing environment was activated"; fi
 
