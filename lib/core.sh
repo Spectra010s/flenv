@@ -11,6 +11,18 @@ flenv_info() {
 	printf 'flenv: %s\n' "$*" >&2
 }
 
+flenv_section() {
+	printf '\n[%s/%s] %s\n' "$1" "$2" "$3"
+}
+
+flenv_step() {
+	printf '  → %s\n' "$*"
+}
+
+flenv_success() {
+	printf '  ✓ %s\n' "$*"
+}
+
 flenv_require_linux() {
 	[[ "$(uname -s)" == "Linux" ]] || flenv_die "v0.1 currently supports Linux only"
 }
