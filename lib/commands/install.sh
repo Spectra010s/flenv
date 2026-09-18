@@ -108,11 +108,25 @@ flenv_install() {
 		flenv_info "resuming existing environment: $environment"
 	fi
 
+	flenv_section 1 4 "Flutter"
 	flenv_provision_flutter "$environment"
-	flenv_provision_android "$environment"
-	flenv_validate_environment "$environment"
 
-	printf 'Environment %s is provisioned.\n' "$name"
+	flenv_section 2 4 "Java"
+	flenv_step "Checking installed JDK"
+	local java_home java_major
+	java_home="$(flenv_detect_java)"
+	java_major="$(flenv_java_major_version "$java_home/bin/java")"
+	flenv_success "Java $java_major"
+
+	flenv_section 3 4 "Android"
+	flenv_provision_android "$environment"
+
+	flenv_section 4 4 "Validation"
+	flenv_step "Checking Flutter Android toolchain"
+	flenv_validate_environment "$environment"
+	flenv_success "Environment ready"
+
+	printf '\nEnvironment %s is provisioned.\n' "$name"
 	printf 'Path: %s\n' "$environment"
 	printf 'Isolated: %s\n' "$isolated"
 	if [[ "$isolated" == "true" ]]; then
