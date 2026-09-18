@@ -43,7 +43,7 @@ flenv_provision_android() {
 	fi
 
 	flenv_step "Installing SDK packages"
-	if ! HOME="$cli_home" JAVA_HOME="$java_home" "$android" --sdk="$sdk" sdk install 		"platform-tools" 		"platforms/android-${FLENV_ANDROID_API}" 		"build-tools/${FLENV_ANDROID_BUILD_TOOLS}" 		"cmdline-tools/latest" >"$log" 2>&1; then
+	if ! HOME="$cli_home" JAVA_HOME="$java_home" "$android" --sdk="$sdk" sdk install "platform-tools" "platforms/android-${FLENV_ANDROID_API}" "build-tools/${FLENV_ANDROID_BUILD_TOOLS}" "cmdline-tools/latest" >"$log" 2>&1; then
 		cat "$log" >&2
 		flenv_die "Android SDK package installation failed"
 	fi
