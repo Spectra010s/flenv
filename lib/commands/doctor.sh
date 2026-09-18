@@ -8,7 +8,7 @@ flenv_doctor_version_line() {
 
 flenv_doctor() {
 	local verbose="false"
-	local name="default"
+	local name=""
 
 	while (($#)); do
 		case "$1" in
@@ -25,6 +25,10 @@ flenv_doctor() {
 		esac
 	done
 
+	if [[ -z "$name" ]]; then
+		name="$(flenv_selected_name || true)"
+		[[ -n "$name" ]] || flenv_die "no environment selected; use --name NAME or run: flenv use NAME"
+	fi
 	flenv_validate_name "$name"
 
 	local record path isolated
