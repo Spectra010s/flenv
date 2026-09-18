@@ -27,10 +27,13 @@ flenv_list() {
 		fi
 
 		if [[ "$isolated" == "true" ]]; then
-			name="$name (isolated)"
+			display_name="$display_name (isolated)"
+		fi
+		if [[ "$name" == "$selected" ]]; then
+			display_name="* $display_name"
 		fi
 
-		printf '%-20s %-10s %s\n' "$name" "$status" "${path:--}"
+		printf '%-20s %-10s %s\n' "$display_name" "$status" "${path:--}"
 	done
 	shopt -u nullglob
 
