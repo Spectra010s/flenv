@@ -16,9 +16,8 @@ flenv_download() {
 
 	flenv_require_command curl
 	mkdir -p -- "$(dirname -- "$destination")"
-	flenv_info "downloading $component"
 
-	if ! curl --fail --location --retry 3 --retry-delay 2 --continue-at - --output "$part" "$url"; then
+	if ! curl --fail --location --silent --show-error --retry 3 --retry-delay 2 --continue-at - --output "$part" "$url"; then
 		flenv_die "$component download failed; partial file kept at $part for retry"
 	fi
 

@@ -33,40 +33,40 @@ PY
 
 flenv_provision_flutter() {
 	local environment="$1"
-	flenv_component_ready "$environment" flutter && {
-		flenv_info "Flutter is already provisioned"
+	if flenv_component_ready "$environment" flutter; then
+		flenv_success "Flutter already provisioned"
 		return 0
-	}
+	fi
 
 	flenv_require_command tar
-	local staging metadata arch archive bundle extract_dir
+	local staging metadata arch archive bundle extract_dir version
 	staging="$(flenv_staging_dir "$environment")/flutter"
 	metadata="$staging/releases_linux.json"
 	mkdir -p -- "$staging"
 
+	flenv_step "Resolving stable release"
 	flenv_download "$FLENV_FLUTTER_RELEASES_URL" "$metadata" "Flutter release metadata"
 	arch="$(flenv_flutter_arch)"
 	archive="$(flenv_flutter_release_archive "$metadata" "$arch")" || flenv_die "cannot resolve stable Flutter release"
 	bundle="$staging/$(basename -- "$archive")"
+	flenv_step "Downloading Flutter SDK"
 	flenv_download "$FLENV_FLUTTER_STORAGE_URL/$archive" "$bundle" "Flutter SDK"
 
+	flenv_step "Extracting"
 	extract_dir="$staging/extracted"
 	rm -rf -- "$extract_dir"
 	mkdir -p -- "$extract_dir"
-	# SDK archives carry ownership metadata that cannot always be restored in
-	# containers and other unprivileged environments. flenv owns the extracted
-	# environment, so preserve the current user's ownership instead.
 	tar --no-same-owner -xf "$bundle" -C "$extract_dir" || flenv_die "Flutter SDK extraction failed"
 	[[ -x "$extract_dir/flutter/bin/flutter" ]] || flenv_die "Flutter archive did not contain a valid SDK"
 
 	rm -rf -- "$environment/flutter"
 	mv -- "$extract_dir/flutter" "$environment/flutter" || flenv_die "cannot install Flutter SDK"
 
-	if ! "$environment/flutter/bin/flutter" --version; then
+	if ! version="$("$environment/flutter/bin/flutter" --version 2>/dev/null | head -n1)"; then
 		rm -f -- "$environment/state/flutter.ready"
 		flenv_die "Flutter validation failed"
 	fi
 
 	flenv_mark_component_ready "$environment" flutter
-	flenv_info "Flutter provisioning complete"
+	flenv_success "${version:-Flutter ready}"
 }
