@@ -21,6 +21,8 @@ source "$FLENV_ROOT_DIR/lib/commands/install.sh"
 source "$FLENV_ROOT_DIR/lib/commands/list.sh"
 # shellcheck source=../lib/commands/doctor.sh
 source "$FLENV_ROOT_DIR/lib/commands/doctor.sh"
+# shellcheck source=../lib/commands/env.sh
+source "$FLENV_ROOT_DIR/lib/commands/env.sh"
 
 flenv_help() {
 	cat <<'EOF'
@@ -29,6 +31,8 @@ flenv - lightweight Flutter environment manager
 Usage:
   flenv install [--root DIR] [--name NAME] [--isolated]
   flenv list
+  flenv use <name>
+  flenv env <name>
   flenv doctor [--name NAME] [-v|--verbose]
   flenv --help
   flenv --version
@@ -36,6 +40,8 @@ Usage:
 Commands:
   install   Create and provision a Flutter + Android environment
   list      List known environments
+  use       Select the default environment
+  env       Print shell activation exports
   doctor    Diagnose a managed Flutter environment
 
 Options:
@@ -63,6 +69,14 @@ main() {
 		shift
 		(($# == 0)) || flenv_die "list does not accept arguments"
 		flenv_list
+		;;
+	use)
+		shift
+		flenv_use "$@"
+		;;
+	env)
+		shift
+		flenv_env "$@"
 		;;
 	doctor)
 		shift
