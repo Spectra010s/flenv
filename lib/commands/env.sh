@@ -25,7 +25,7 @@ flenv_env() {
 		printf 'export GRADLE_USER_HOME=%q\n' "$path/cache/gradle"
 	fi
 
-	printf 'export PATH=%q:"$PATH"\n' "$path/flutter/bin:$path/android-sdk/platform-tools:$path/android-sdk/cmdline-tools/latest/bin"
+	printf 'export PATH=%q:$PATH\n' "$path/flutter/bin:$path/android-sdk/platform-tools:$path/android-sdk/cmdline-tools/latest/bin"
 }
 
 flenv_use() {
@@ -37,5 +37,4 @@ flenv_use() {
 	flenv_resolve_environment "$name" >/dev/null
 	printf '%s\n' "$name" >"$(flenv_selected_path)" || flenv_die "cannot save selected environment"
 	printf 'Selected environment: %s\n' "$name"
-	printf 'Activate it with: eval "$(flenv env %s)"\n' "$name"
 }
