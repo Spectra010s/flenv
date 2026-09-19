@@ -27,6 +27,7 @@ flenv_provision_android() {
 	java_home="$(flenv_detect_java)"
 
 	local cli_home staging launcher log
+	# Give the Android CLI its own HOME so its state stays inside the managed environment.
 	cli_home="$environment/state/android-home"
 	staging="$(flenv_staging_dir "$environment")/android"
 	launcher="$staging/android"
@@ -37,12 +38,13 @@ flenv_provision_android() {
 	flenv_download "$FLENV_ANDROID_CLI_URL" "$launcher" "Android CLI"
 	install -m 0755 -- "$launcher" "$android" || flenv_die "cannot install Android CLI"
 
+	# Keep native CLI output out of the normal install UI; surface it only when a step fails.
 	if ! HOME="$cli_home" JAVA_HOME="$java_home" "$android" --version >"$log" 2>&1; then
 		cat "$log" >&2
 		flenv_die "Android CLI validation failed"
 	fi
 
-	flenv_step "Installing SDK packages"
+	# The current Android CLI handles the required package agreements during installation,\n	# so flenv does not run the older separate `sdkmanager --licenses` flow.\n	flenv_step "Installing SDK packages"
 	if ! HOME="$cli_home" JAVA_HOME="$java_home" "$android" --sdk="$sdk" sdk install "platform-tools" "platforms/android-${FLENV_ANDROID_API}" "build-tools/${FLENV_ANDROID_BUILD_TOOLS}" "cmdline-tools/latest" >"$log" 2>&1; then
 		cat "$log" >&2
 		flenv_die "Android SDK package installation failed"

@@ -15,7 +15,7 @@ flenv_env() {
 	for variable in JAVA_HOME PUB_CACHE GRADLE_USER_HOME; do
 		saved="FLENV_SAVED_$variable"
 		if [[ -z "${FLENV_ACTIVE_ROOT:-}" ]]; then
-			if [[ -v $variable ]]; then
+			# Bash -v tests whether a variable is set, even when its value is empty.\n		if [[ -v $variable ]]; then
 				printf 'export %s=%q\n' "$saved" "${!variable}"
 			else
 				printf 'unset %s\n' "$saved"
@@ -57,7 +57,7 @@ flenv_env() {
 		printf 'export GRADLE_USER_HOME=%q\n' "$path/cache/gradle"
 	fi
 
-	local IFS=:
+	# Joining an array with ${array[*]} uses the first IFS character, producing a PATH string.\n	local IFS=:
 	printf 'export PATH=%q\n' "${paths[*]}"
 }
 

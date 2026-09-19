@@ -18,7 +18,7 @@ flenv() {
 			return 1
 		}
 
-		local activation
+		# The CLI prints shell assignments; eval applies them to this shell so `use` can activate the environment.\n		local activation
 		activation="$(command flenv env "$name")" || return
 		command flenv use "$name" || return
 		eval "$activation"

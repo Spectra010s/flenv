@@ -31,6 +31,7 @@ flenv_validate_name() {
 	local name="$1"
 	[[ -n "$name" ]] || flenv_die "environment name cannot be empty"
 	[[ "$name" != "." && "$name" != ".." ]] || flenv_die "invalid environment name: $name"
+	# Names become record filenames and path components, so separators and traversal are rejected.
 	[[ "$name" =~ ^[A-Za-z0-9._-]+$ ]] || flenv_die "invalid environment name: $name"
 }
 
@@ -38,6 +39,7 @@ flenv_environment_path() {
 	local name="$1"
 	local root="${2:-}"
 
+	# External roots are storage bases; flenv keeps its own namespace beneath them.
 	if [[ -n "$root" ]]; then
 		printf '%s/flenv/environments/%s\n' "${root%/}" "$name"
 	else
@@ -61,6 +63,7 @@ flenv_write_record() {
 	local record
 	record="$(flenv_record_path "$name")"
 
+	# Records stay lightweight even when the actual environment lives on another filesystem.
 	{
 		printf 'path=%s\n' "$path"
 		printf 'isolated=%s\n' "$isolated"
@@ -101,6 +104,7 @@ flenv_resolve_environment() {
 	record="$(flenv_record_path "$name")"
 	[[ -f "$record" ]] || flenv_die "environment not found: $name"
 	path="$(flenv_read_record_value "$record" path || true)"
+	# Keep stale records visible to list/doctor, but never activate a missing environment.
 	[[ -n "$path" && -d "$path" ]] || flenv_die "environment is missing: $name"
 	printf '%s\n' "$path"
 }

@@ -17,6 +17,7 @@ flenv_download() {
 	flenv_require_command curl
 	mkdir -p -- "$(dirname -- "$destination")"
 
+	# Download into a .part file so interrupted transfers can resume without replacing a valid artifact.
 	if ! curl --fail --location --silent --show-error --retry 3 --retry-delay 2 --continue-at - --output "$part" "$url"; then
 		flenv_die "$component download failed; partial file kept at $part for retry"
 	fi
@@ -28,6 +29,7 @@ flenv_mark_component_ready() {
 	local environment="$1"
 	local component="$2"
 	mkdir -p -- "$environment/state"
+	# Readiness markers are written only after the component has passed its validation.
 	: >"$environment/state/${component}.ready"
 }
 
