@@ -13,6 +13,7 @@ flenv_java_major_version() {
 flenv_java_home() {
 	local java="$1"
 	local resolved
+	# Resolve symlinks first so PATH-provided Java binaries lead back to the actual JDK home.
 	resolved="$(readlink -f -- "$java" 2>/dev/null || true)"
 	[[ -n "$resolved" && -x "$resolved" ]] || resolved="$java"
 	cd -P -- "$(dirname -- "$resolved")/.." && pwd
@@ -21,6 +22,7 @@ flenv_java_home() {
 flenv_detect_java() {
 	local java=""
 
+	# Respect an explicit JAVA_HOME before falling back to the host's PATH.
 	if [[ -n "${JAVA_HOME:-}" && -x "$JAVA_HOME/bin/java" ]]; then
 		java="$JAVA_HOME/bin/java"
 	elif command -v java >/dev/null 2>&1; then
