@@ -4,6 +4,14 @@ Thanks for contributing to flenv.
 
 flenv is a Bash-first, Linux-first project. Contributor tooling such as ShellCheck and shfmt is used during development, but is not required by people using flenv.
 
+## Issues
+
+Before opening an issue, check the existing issues to avoid duplicates.
+
+For bugs, describe what happened, what you expected to happen, and include enough context to reproduce the problem.
+
+For features or improvements, explain the problem or use case first, then describe the proposed change and its scope. Keep issues focused so they can be implemented and reviewed independently.
+
 ## Getting started
 
 Fork or clone the repository and create a branch from the latest `main` for your change.
