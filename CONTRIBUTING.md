@@ -2,69 +2,66 @@
 
 Thanks for contributing to flenv.
 
-flenv is a Bash-first, Linux-first project. Development tooling such as ShellCheck and shfmt is required for contributors, but is not a runtime dependency for flenv users.
+flenv is a Bash-first, Linux-first project. Contributor tooling such as ShellCheck and shfmt is used during development, but is not required by people using flenv.
 
-## Development requirements
+## Getting started
 
-You need:
+Fork or clone the repository and create a branch from the latest `main` for your change.
 
-- Bash
-- ShellCheck
-- shfmt 3.12.0
+Use a short, descriptive branch name that reflects the kind of work being done:
 
-On Debian/Ubuntu, ShellCheck can be installed with:
-
-```sh
-sudo apt-get update
-sudo apt-get install -y shellcheck
+```text
+feat/install-progress
+fix/environment-activation
+docs/contributor-workflow
 ```
 
-Install shfmt 3.12.0 using the appropriate release binary for your system from the shfmt releases.
+Keep each branch focused on one issue or change.
 
-## Run the checks
+## Making changes
 
-Before opening a pull request, run the same checks used by CI from the repository root.
+Before starting, check the issue you are working on and keep the implementation within its scope.
 
-### Bash syntax
+Follow the existing Bash style and project structure. Avoid introducing runtime dependencies unless the change genuinely requires them.
+
+When behavior changes, add or update tests that cover the change, including relevant failure cases.
+
+## Testing
+
+The shell test suite is run through:
+
+```sh
+bash test/cli.sh
+```
+
+Add tests for new behavior and bug fixes rather than relying only on existing coverage. Run the suite before opening or updating a pull request.
+
+You can also check Bash syntax with:
 
 ```sh
 bash -n bin/flenv
 find lib shell test -type f -name '*.sh' -print0 | xargs -0 -n1 bash -n
 ```
 
-### Formatting
+## Formatting and linting
 
-Format changed shell files with:
+flenv uses shfmt and ShellCheck.
 
-```sh
-shfmt -w bin/flenv lib shell test
-```
-
-Then verify that the repository is formatted:
+Format the repository with:
 
 ```sh
-shfmt -d bin/flenv lib shell test
+shfmt -w .
 ```
 
-### ShellCheck
+Run ShellCheck with:
 
 ```sh
 shellcheck -e SC1091 bin/flenv lib/*.sh lib/commands/*.sh shell/*.sh test/*.sh
 ```
 
-### Tests
+CI checks formatting, Bash syntax, ShellCheck, and the test suite on pushes to `main` and on pull requests.
 
-```sh
-bash test/cli.sh
-```
-
-## Workflow
-
-1. Pick an existing issue or open a focused issue for the change.
-2. Create a focused branch from `main`.
-3. Keep the change scoped to that issue.
-4. Run the checks above.
-5. Open a pull request against `main` and link the issue it addresses.
+## Commits
 
 Use conventional commit messages in this form:
 
@@ -79,5 +76,11 @@ feat(env): add environment activation
 fix(install): preserve partial downloads
 docs(contributing): document local checks
 ```
+
+Keep commits focused and use a scope that describes the part of flenv being changed.
+
+## Pull requests
+
+Open pull requests against `main` and link the issue they address.
 
 Keep pull request descriptions focused on the change itself, its behavior, and relevant verification.
