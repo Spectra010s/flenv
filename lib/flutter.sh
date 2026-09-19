@@ -16,6 +16,7 @@ flenv_flutter_release_archive() {
 	local arch="$2"
 	flenv_require_command python3
 
+	# Resolve the current stable archive from Flutter's metadata instead of pinning a release.
 	python3 - "$metadata" "$arch" <<'PY'
 import json, sys
 path, arch = sys.argv[1:]
@@ -59,6 +60,7 @@ flenv_provision_flutter() {
 	tar --no-same-owner -xf "$bundle" -C "$extract_dir" || flenv_die "Flutter SDK extraction failed"
 	[[ -x "$extract_dir/flutter/bin/flutter" ]] || flenv_die "Flutter archive did not contain a valid SDK"
 
+	# Replace the SDK only after extraction succeeds, leaving staging data available for retries.
 	rm -rf -- "$environment/flutter"
 	mv -- "$extract_dir/flutter" "$environment/flutter" || flenv_die "cannot install Flutter SDK"
 
