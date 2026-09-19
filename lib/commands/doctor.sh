@@ -45,7 +45,7 @@ flenv_doctor() {
 	local java_home=""
 	[[ -f "$path/state/java-home" ]] && java_home="$(<"$path/state/java-home")"
 
-	local failed=0
+	# Track failures instead of exiting on the first one so doctor can report all visible problems.\n	local failed=0
 	local host arch java_version flutter_version dart_version adb_version
 	host="$(uname -s)"
 	arch="$(uname -m)"
@@ -136,7 +136,8 @@ flenv_doctor() {
 		fi
 	fi
 
-	# Provisioning writes this marker only after Flutter doctor validates the Android toolchain.\n	if [[ -f "$path/state/environment.ready" ]]; then
+	# Provisioning writes this marker only after Flutter doctor validates the Android toolchain.
+	if [[ -f "$path/state/environment.ready" ]]; then
 		printf '  ✓ Flutter Android toolchain\n'
 	else
 		printf '  ✗ Flutter Android toolchain\n'

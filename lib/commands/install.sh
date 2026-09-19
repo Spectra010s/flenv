@@ -14,7 +14,8 @@ flenv_validate_environment() {
 	local sdk="$environment/android-sdk"
 	local java_home flutter_home doctor_output
 
-	# A failed re-validation must never leave a stale ready marker behind.\n	rm -f -- "$environment/state/environment.ready"
+	# A failed re-validation must never leave a stale ready marker behind.
+	rm -f -- "$environment/state/environment.ready"
 
 	[[ -x "$flutter" ]] || flenv_die "Flutter is not installed in the environment"
 	[[ -x "$sdk/platform-tools/adb" ]] || flenv_die "Android platform-tools are not installed in the environment"
@@ -26,7 +27,8 @@ flenv_validate_environment() {
 		java_home="$(flenv_detect_java)"
 	fi
 
-	# Flutter gets an environment-local HOME so configuration does not leak into the host home.\n	flutter_home="$environment/state/flutter-home"
+	# Flutter gets an environment-local HOME so configuration does not leak into the host home.
+	flutter_home="$environment/state/flutter-home"
 	mkdir -p -- "$flutter_home"
 
 	HOME="$flutter_home" JAVA_HOME="$java_home" ANDROID_HOME="$sdk" ANDROID_SDK_ROOT="$sdk" \
@@ -54,7 +56,7 @@ flenv_install() {
 	local name="default"
 	local isolated="false"
 
-	while (($#)); do
+	# Walk through command-line arguments until every install option has been consumed.\n	while (($#)); do
 		case "$1" in
 		--root)
 			(($# >= 2)) || flenv_die "--root requires a directory"
@@ -93,7 +95,8 @@ flenv_install() {
 	local environment
 	environment="$(flenv_environment_path "$name" "$root")"
 
-	# Existing directories are resumed so interrupted provisioning can be retried safely.\n	if [[ ! -e "$environment" ]]; then
+	# Existing directories are resumed so interrupted provisioning can be retried safely.
+	if [[ ! -e "$environment" ]]; then
 		mkdir -p -- "$environment/flutter" "$environment/android-sdk" "$environment/state" ||
 			flenv_die "cannot create environment: $environment"
 

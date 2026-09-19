@@ -10,7 +10,7 @@ flenv_list() {
 
 	printf '%-20s %-10s %s\n' "NAME" "STATUS" "PATH"
 
-	shopt -s nullglob
+	# nullglob makes an empty records directory produce zero loop entries instead of a literal `*`.\n	shopt -s nullglob
 	for record in "$FLENV_HOME"/records/*; do
 		found="true"
 		name="${record##*/}"
