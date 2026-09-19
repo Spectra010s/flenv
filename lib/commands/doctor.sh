@@ -136,7 +136,7 @@ flenv_doctor() {
 		fi
 	fi
 
-	if [[ -f "$path/state/environment.ready" ]]; then
+	# Provisioning writes this marker only after Flutter doctor validates the Android toolchain.\n	if [[ -f "$path/state/environment.ready" ]]; then
 		printf '  ✓ Flutter Android toolchain\n'
 	else
 		printf '  ✗ Flutter Android toolchain\n'
