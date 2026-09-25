@@ -112,3 +112,30 @@ Initial scope:
 ## Development
 
 Development is issue-driven. `main` describes the current usable state; implementation work happens on focused branches and lands through pull requests.
+
+## Install progress and logs
+
+Each provisioning run writes a unique, private log under
+`$FLENV_HOME/logs/install-<name>-<UTC timestamp>-<random>.log` (by default,
+`~/.flenv/logs`). The installer prints its path when it starts. Logs include
+command arguments, tool output, Java detection, validation diagnostics, and exit
+status. They are retained after success or failure and across retries; flenv does
+not rotate or delete them automatically. Logs remain available if an environment
+stored elsewhere disappears. If the metadata directory cannot be written, the
+installer reports that error before provisioning starts.
+
+Normal terminal output contains stage headings and short status messages.
+Downloads show actual bytes saved to the partial file, including any bytes from
+a previous attempt. There is no estimated percentage when the total is unknown.
+Other long operations show elapsed time. Capable terminals update a single line;
+redirected output, CI, and `TERM=dumb` use plain lines at ten-second intervals,
+plus a final byte count for downloads.
+
+On failure, flenv names the stage and operation and prints the detailed log path.
+While a command is running, its output is captured in the adjacent `.log.output`
+file, then appended to the main log when the command finishes. Handled
+interruptions also preserve this output. A forcibly killed process may leave
+that capture file alongside the log. Failed downloads retain their `.part` files
+and the existing curl retry/resume behavior.
+
+The installation UI is inspired by Coolify's installer.
