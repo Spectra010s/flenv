@@ -1,7 +1,8 @@
+use crate::dl::{self, download};
 use anyhow::{Context, Result, bail};
 use sha2::{Digest, Sha256};
 use std::fs::{self, File};
-use std::io::{self, Read, Write};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -109,67 +110,6 @@ fn staging_dir(environment: &Path) -> PathBuf {
     environment.join("state/staging/flutter")
 }
 
-/// Download a URL to `destination`, resuming a `.part` file when present.
-/// A failed or interrupted transfer keeps the `.part` file for retry and
-/// never leaves a truncated file at the final path.
-pub fn download(url: &str, destination: &Path, component: &str) -> Result<()> {
-    if let Some(parent) = destination.parent() {
-        fs::create_dir_all(parent)
-            .with_context(|| format!("cannot create {}", parent.display()))?;
-    }
-    let part = destination.with_extension("part");
-    let resumed = fs::metadata(&part).map(|m| m.len()).unwrap_or(0);
-
-    let mut request = ureq::get(url);
-    if resumed > 0 {
-        request = request.header("Range", &format!("bytes={resumed}-"));
-    }
-    let mut response = request
-        .call()
-        .with_context(|| format!("{component} download failed; partial file kept for retry"))?;
-
-    // Server ignored the range: restart from scratch rather than appending.
-    let status = response.status();
-    let mut out = if status == 206 {
-        File::options()
-            .append(true)
-            .open(&part)
-            .with_context(|| format!("cannot append to {}", part.display()))?
-    } else {
-        File::create(&part).with_context(|| format!("cannot write to {}", part.display()))?
-    };
-    io::copy(&mut response.body_mut().as_reader(), &mut out).with_context(|| {
-        format!(
-            "{component} download failed; partial file kept at {}",
-            part.display()
-        )
-    })?;
-    out.flush()?;
-    drop(out);
-
-    fs::rename(&part, destination).with_context(|| {
-        format!(
-            "cannot finalize {component} download ({} -> {})",
-            part.display(),
-            destination.display()
-        )
-    })?;
-    Ok(())
-}
-
-fn read_to_string(url: &str, component: &str) -> Result<String> {
-    let mut response = ureq::get(url)
-        .call()
-        .with_context(|| format!("{component} download failed"))?;
-    let mut body = String::new();
-    response
-        .body_mut()
-        .as_reader()
-        .read_to_string(&mut body)
-        .context("cannot read response")?;
-    Ok(body)
-}
-
 /// Provision the Flutter SDK into `environment`.
 ///
 /// Returns the installed version. Reinstalling the same resolved version
@@ -183,7 +123,7 @@ pub fn provision(environment: &Path, version_req: &str) -> Result<String> {
     let recorded = state.join("flutter-version");
 
     eprintln!("  → Resolving Flutter ({version_req})");
-    let metadata = read_to_string(RELEASES_URL, "Flutter release metadata")?;
+    let metadata = dl::fetch_string(RELEASES_URL, "Flutter release metadata")?;
     let arch = host_arch()?;
     let release = resolve_release(&metadata, version_req, arch)?;
 

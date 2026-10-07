@@ -1,7 +1,10 @@
 use clap::{Parser, Subcommand};
 use std::path::{Path, PathBuf};
 
+mod android;
+mod dl;
 mod flutter;
+mod java;
 
 /// flenv: start Flutter development without Android Studio.
 #[derive(Parser, Debug)]
@@ -42,6 +45,14 @@ struct SetupArgs {
     /// Flutter version: stable or a pinned release like 3.38.0
     #[arg(long, default_value = "stable")]
     flutter_version: String,
+
+    /// Android API level to install
+    #[arg(long, default_value = android::DEFAULT_API)]
+    android_api: String,
+
+    /// Android build-tools version to install
+    #[arg(long, default_value = android::DEFAULT_BUILD_TOOLS)]
+    android_build_tools: String,
 }
 
 #[derive(clap::Args, Debug)]
@@ -140,7 +151,9 @@ fn cmd_setup(args: SetupArgs) -> anyhow::Result<()> {
     println!("[1/2] Flutter");
     flutter::provision(&environment, &args.flutter_version)?;
 
-    // Android provisioning lands in #38.
+    println!("\n[2/2] Android");
+    android::provision(&environment, &args.android_api, &args.android_build_tools)?;
+
     println!("\nEnvironment {} provisioned.", args.name);
     println!("Path: {}", environment.display());
     Ok(())
