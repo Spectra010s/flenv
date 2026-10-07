@@ -35,3 +35,30 @@ jobs:
 
       - name: Run CLI tests
         run: bash test/cli.sh
+
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Run Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Run tests
+        run: cargo test
+
+      - name: Check help lists all commands
+        run: |
+          cargo run -- --help | grep -q setup
+          cargo run -- --help | grep -q doctor
+          cargo run -- --help | grep -q list
+          cargo run -- --help | grep -q start
+          cargo run -- --help | grep -q view
