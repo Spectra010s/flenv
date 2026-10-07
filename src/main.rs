@@ -1,8 +1,9 @@
 use clap::{Parser, Subcommand};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 mod android;
 mod dl;
+mod env;
 mod flutter;
 mod java;
 
@@ -22,6 +23,10 @@ enum Commands {
     Doctor(DoctorArgs),
     /// List known environments
     List,
+    /// Select the default environment
+    Use(UseArgs),
+    /// Print shell activation exports (eval "$(flenv env <name>)")
+    Env(EnvArgs),
     /// Start an emulator for an environment
     Start(StartArgs),
     /// Show how to view a running emulator/device
@@ -67,6 +72,18 @@ struct DoctorArgs {
 }
 
 #[derive(clap::Args, Debug)]
+struct UseArgs {
+    /// Environment to select
+    name: String,
+}
+
+#[derive(clap::Args, Debug)]
+struct EnvArgs {
+    /// Environment to activate
+    name: String,
+}
+
+#[derive(clap::Args, Debug)]
 struct StartArgs {
     /// Environment to start the emulator from (default: selected)
     #[arg(long)]
@@ -97,49 +114,17 @@ fn run(cli: Cli) -> anyhow::Result<()> {
         Commands::Setup(args) => cmd_setup(args),
         Commands::Doctor(args) => cmd_doctor(args),
         Commands::List => cmd_list(),
+        Commands::Use(args) => cmd_use(args),
+        Commands::Env(args) => cmd_env(args),
         Commands::Start(args) => cmd_start(args),
         Commands::View(args) => cmd_view(args),
     }
 }
 
-/// Names become record filenames and path components, so separators
-/// and traversal are rejected. (Full record handling lands in #39.)
-fn validate_name(name: &str) -> anyhow::Result<()> {
-    if name.is_empty() || name == "." || name == ".." {
-        anyhow::bail!("invalid environment name: {name}");
-    }
-    if !name
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
-    {
-        anyhow::bail!("invalid environment name: {name}");
-    }
-    Ok(())
-}
-
-/// Resolve the environment directory. External roots are storage bases;
-/// flenv keeps its own namespace beneath them. (Records land in #39.)
-fn environment_path(name: &str, root: Option<&Path>) -> anyhow::Result<PathBuf> {
-    validate_name(name)?;
-    if let Some(root) = root {
-        if !root.is_dir() {
-            anyhow::bail!("root is not a directory: {}", root.display());
-        }
-        Ok(root.join("flenv/environments").join(name))
-    } else {
-        let home = std::env::var("FLENV_HOME")
-            .map(PathBuf::from)
-            .or_else(|_| {
-                std::env::var("HOME")
-                    .map(|h| PathBuf::from(h).join(".flenv"))
-                    .map_err(|_| anyhow::anyhow!("HOME must be set"))
-            })?;
-        Ok(home.join("environments").join(name))
-    }
-}
-
 fn cmd_setup(args: SetupArgs) -> anyhow::Result<()> {
-    let environment = environment_path(&args.name, args.root.as_deref())?;
+    env::validate_name(&args.name)?;
+    let home = env::flenv_home()?;
+    let environment = env::environment_path(&args.name, args.root.as_deref(), &home)?;
     std::fs::create_dir_all(environment.join("flutter"))?;
     std::fs::create_dir_all(environment.join("state"))?;
     if args.isolated {
@@ -147,6 +132,8 @@ fn cmd_setup(args: SetupArgs) -> anyhow::Result<()> {
         std::fs::create_dir_all(environment.join("cache/gradle"))?;
         std::fs::create_dir_all(environment.join("workspace"))?;
     }
+    // Record first so retries and later commands resolve the name.
+    env::write_record(&home, &args.name, &environment, args.isolated)?;
 
     println!("[1/2] Flutter");
     flutter::provision(&environment, &args.flutter_version)?;
@@ -170,8 +157,68 @@ fn cmd_doctor(args: DoctorArgs) -> anyhow::Result<()> {
 }
 
 fn cmd_list() -> anyhow::Result<()> {
-    // Full listing lands in #39 (env roots + records).
-    println!("NAME STATUS PATH");
+    let home = env::flenv_home()?;
+    std::fs::create_dir_all(home.join("records"))?;
+    println!("{:<20} {:<10} PATH", "NAME", "STATUS");
+    let entries = env::list(&home)?;
+    if entries.is_empty() {
+        println!("No environments recorded.");
+        return Ok(());
+    }
+    for entry in entries {
+        let mut display = entry.name.clone();
+        if entry.record.as_ref().is_some_and(|r| r.isolated) {
+            display.push_str(" (isolated)");
+        }
+        if entry.selected {
+            display = format!("* {display}");
+        }
+        println!(
+            "{:<20} {:<10} {}",
+            display,
+            entry.status.to_string(),
+            entry
+                .record
+                .map(|r| r.path.display().to_string())
+                .unwrap_or_else(|| "-".to_owned())
+        );
+    }
+    Ok(())
+}
+
+/// `use` persists the selection only — it cannot mutate the parent
+/// shell. The `shell/flenv.sh` wrapper layers `env` output on top.
+fn cmd_use(args: UseArgs) -> anyhow::Result<()> {
+    let home = env::flenv_home()?;
+    env::set_selected(&home, &args.name)?;
+    println!("Selected environment: {}", args.name);
+    Ok(())
+}
+
+/// Print activation exports on stdout only; failures go to stderr via
+/// main's error path so `eval` never consumes a broken environment.
+fn cmd_env(args: EnvArgs) -> anyhow::Result<()> {
+    let home = env::flenv_home()?;
+    let path = env::resolve(&home, &args.name)?;
+    let record = env::read_record(&home, &args.name)?
+        .ok_or_else(|| anyhow::anyhow!("environment not found: {}", args.name))?;
+    let java_file = path.join("state/java-home");
+    let java_home = std::fs::read_to_string(&java_file)
+        .ok()
+        .map(|s| s.trim().to_owned())
+        .filter(|s| !s.is_empty())
+        .map(std::path::PathBuf::from)
+        .filter(|p| p.join("bin/java").is_file());
+    print!(
+        "{}",
+        env::render_activation(
+            &path,
+            &args.name,
+            record.isolated,
+            java_home.as_deref(),
+            &env::HostSnapshot::capture()
+        )
+    );
     Ok(())
 }
 
@@ -203,7 +250,7 @@ mod tests {
     fn cli_help_lists_all_commands() {
         let mut cmd = Cli::command();
         let help = cmd.render_help().to_string();
-        for sub in ["setup", "doctor", "list", "start", "view"] {
+        for sub in ["setup", "doctor", "list", "use", "env", "start", "view"] {
             assert!(help.contains(sub), "help missing: {sub}\n{help}");
         }
     }
