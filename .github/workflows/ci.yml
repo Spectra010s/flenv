@@ -60,5 +60,10 @@ jobs:
           cargo run -- --help | grep -q setup
           cargo run -- --help | grep -q doctor
           cargo run -- --help | grep -q list
-          cargo run -- --help | grep -q start
+          cargo run -- --help | grep -q "use "
+          cargo run -- --help | grep -q "env "
+          cargo run -- --help | grep -q emulator
           cargo run -- --help | grep -q view
+          cargo run -- emulator --help | grep -q create
+          cargo run -- emulator --help | grep -q "list"
+          cargo run -- emulator --help | grep -q start
