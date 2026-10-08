@@ -109,6 +109,20 @@ pub fn selected_name(home: &Path) -> Result<Option<String>> {
     Ok(if name.is_empty() { None } else { Some(name) })
 }
 
+/// Resolve `--name` or fall back to the selected environment, returning
+/// both the name and its live path.
+pub fn resolve_or_selected(home: &Path, name: Option<&str>) -> Result<(String, PathBuf)> {
+    match name {
+        Some(n) => Ok((n.to_owned(), resolve(home, n)?)),
+        None => {
+            let selected = selected_name(home)?.with_context(|| {
+                "no environment selected; use --name NAME or run: flenv use NAME".to_owned()
+            })?;
+            Ok((selected.clone(), resolve(home, &selected)?))
+        }
+    }
+}
+
 pub fn set_selected(home: &Path, name: &str) -> Result<PathBuf> {
     let path = resolve(home, name)?;
     fs::create_dir_all(home)?;
