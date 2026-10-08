@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 mod android;
 mod dl;
+mod emulator;
 mod env;
 mod flutter;
 mod java;
@@ -27,8 +28,8 @@ enum Commands {
     Use(UseArgs),
     /// Print shell activation exports (eval "$(flenv env <name>)")
     Env(EnvArgs),
-    /// Start an emulator for an environment
-    Start(StartArgs),
+    /// Manage emulator images and virtual devices
+    Emulator(EmulatorArgs),
     /// Show how to view a running emulator/device
     View(ViewArgs),
 }
@@ -84,10 +85,64 @@ struct EnvArgs {
 }
 
 #[derive(clap::Args, Debug)]
-struct StartArgs {
-    /// Environment to start the emulator from (default: selected)
+struct EmulatorArgs {
+    #[command(subcommand)]
+    action: EmulatorAction,
+}
+
+#[derive(clap::Subcommand, Debug)]
+enum EmulatorAction {
+    /// Install a system image and create an AVD
+    Create(EmulatorCreateArgs),
+    /// List available AVDs
+    List(EmulatorEnvArgs),
+    /// Start an emulator (detached, boots in background)
+    Start(EmulatorStartArgs),
+}
+
+#[derive(clap::Args, Debug)]
+struct EmulatorEnvArgs {
+    /// Environment holding the SDK (default: selected)
     #[arg(long)]
     name: Option<String>,
+}
+
+#[derive(clap::Args, Debug)]
+struct EmulatorCreateArgs {
+    /// Environment holding the SDK (default: selected)
+    #[arg(long)]
+    name: Option<String>,
+
+    /// AVD name (default: <env>_API_<api>)
+    #[arg(long)]
+    avd: Option<String>,
+
+    /// Android API level for the system image
+    #[arg(long, default_value = android::DEFAULT_API)]
+    api: String,
+
+    /// Device profile for the AVD
+    #[arg(long, default_value = "pixel")]
+    device: String,
+
+    /// Skip the desktop shortcut
+    #[arg(long, default_value_t = false)]
+    no_shortcut: bool,
+}
+
+#[derive(clap::Args, Debug)]
+struct EmulatorStartArgs {
+    /// Environment holding the SDK (default: selected)
+    #[arg(long)]
+    name: Option<String>,
+
+    /// AVD to start (default: first available)
+    #[arg(long)]
+    avd: Option<String>,
+
+    /// Run without a window (headless / slow-preview hosts)
+    #[arg(long, default_value_t = false)]
+    no_window: bool,
 }
 
 #[derive(clap::Args, Debug)]
@@ -116,7 +171,7 @@ fn run(cli: Cli) -> anyhow::Result<()> {
         Commands::List => cmd_list(),
         Commands::Use(args) => cmd_use(args),
         Commands::Env(args) => cmd_env(args),
-        Commands::Start(args) => cmd_start(args),
+        Commands::Emulator(args) => cmd_emulator(args),
         Commands::View(args) => cmd_view(args),
     }
 }
@@ -222,13 +277,38 @@ fn cmd_env(args: EnvArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn cmd_start(args: StartArgs) -> anyhow::Result<()> {
-    // Full AVD handling lands in #40.
-    println!(
-        "start: name={}",
-        args.name.as_deref().unwrap_or("(selected)"),
-    );
-    Ok(())
+fn cmd_emulator(args: EmulatorArgs) -> anyhow::Result<()> {
+    let home = env::flenv_home()?;
+    match args.action {
+        EmulatorAction::Create(c) => {
+            let (env_name, path) = env::resolve_or_selected(&home, c.name.as_deref())?;
+            let avd = c.avd.unwrap_or_else(|| format!("{env_name}_API_{}", c.api));
+            emulator::create(&path, &avd, &c.api, &c.device)?;
+            if !c.no_shortcut {
+                match emulator::install_shortcut(&path, &avd, &avd) {
+                    Ok(file) => println!("  ✓ Shortcut: {}", file.display()),
+                    Err(e) => eprintln!("  → Shortcut skipped: {e:#}"),
+                }
+            }
+            Ok(())
+        }
+        EmulatorAction::List(l) => {
+            let (_, path) = env::resolve_or_selected(&home, l.name.as_deref())?;
+            let avds = emulator::list_avds(&path)?;
+            if avds.is_empty() {
+                println!("No AVDs. Create one with: flenv emulator create");
+            }
+            for avd in avds {
+                println!("{avd}");
+            }
+            Ok(())
+        }
+        EmulatorAction::Start(s) => {
+            let (_, path) = env::resolve_or_selected(&home, s.name.as_deref())?;
+            emulator::start(&path, s.avd.as_deref(), s.no_window)?;
+            Ok(())
+        }
+    }
 }
 
 fn cmd_view(args: ViewArgs) -> anyhow::Result<()> {
@@ -250,7 +330,7 @@ mod tests {
     fn cli_help_lists_all_commands() {
         let mut cmd = Cli::command();
         let help = cmd.render_help().to_string();
-        for sub in ["setup", "doctor", "list", "use", "env", "start", "view"] {
+        for sub in ["setup", "doctor", "list", "use", "env", "emulator", "view"] {
             assert!(help.contains(sub), "help missing: {sub}\n{help}");
         }
     }
