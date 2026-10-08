@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 mod android;
 mod dl;
+mod doctor;
 mod emulator;
 mod env;
 mod flutter;
@@ -202,13 +203,8 @@ fn cmd_setup(args: SetupArgs) -> anyhow::Result<()> {
 }
 
 fn cmd_doctor(args: DoctorArgs) -> anyhow::Result<()> {
-    // Full checks land in #41 (toolchain + KVM warning).
-    println!(
-        "doctor: name={} verbose={}",
-        args.name.as_deref().unwrap_or("(selected)"),
-        args.verbose,
-    );
-    Ok(())
+    let home = env::flenv_home()?;
+    doctor::run(&home, args.name.as_deref(), args.verbose)
 }
 
 fn cmd_list() -> anyhow::Result<()> {
