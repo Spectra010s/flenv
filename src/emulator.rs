@@ -181,10 +181,16 @@ pub fn start(env_path: &Path, avd: Option<&str>, no_window: bool) -> Result<Stri
 
 /// Desktop shortcut content per OS, so the emulator is one click away
 /// outside the terminal (mirrors the android-env UX).
-pub fn shortcut_contents(os: &str, label: &str, emulator_bin: &str, avd: &str) -> Result<String> {
+pub fn shortcut_contents(
+    os: &str,
+    label: &str,
+    emulator_bin: &str,
+    avd: &str,
+    icon: &str,
+) -> Result<String> {
     match os {
         "linux" => Ok(format!(
-            "[Desktop Entry]\nVersion=1.0\nType=Application\nName={label}\nExec={emulator_bin} -avd {avd}\nTerminal=false\n"
+            "[Desktop Entry]\nVersion=1.0\nType=Application\nName={label}\nExec={emulator_bin} -avd {avd}\nIcon={icon}\nTerminal=false\n"
         )),
         "windows" => Ok(format!(
             "@echo off\r\nstart /B \"\" \"{emulator_bin}\" -avd {avd} > NUL 2>&1\r\n"
@@ -194,16 +200,34 @@ pub fn shortcut_contents(os: &str, label: &str, emulator_bin: &str, avd: &str) -
     }
 }
 
+/// Phone icon baked into the binary, written next to Linux shortcuts
+/// so launchers show a device instead of a generic gear.
+const ICON_SVG: &[u8] = include_bytes!("../assets/flenv.svg");
+
+fn install_icon() -> Result<PathBuf> {
+    let dir = home_dir()?.join(".local/share/icons");
+    fs::create_dir_all(&dir)?;
+    let file = dir.join("flenv.svg");
+    if !file.is_file() {
+        fs::write(&file, ICON_SVG)?;
+    }
+    Ok(file)
+}
+
 pub fn install_shortcut(env_path: &Path, avd: &str, label: &str) -> Result<PathBuf> {
     let os = std::env::consts::OS;
     let sdk = env_path.join("android-sdk");
     let bin = sdk_bin(&sdk, "emulator").to_string_lossy().into_owned();
     match os {
         "linux" => {
+            let icon = install_icon()?;
             let dir = home_dir()?.join(".local/share/applications");
             fs::create_dir_all(&dir)?;
             let file = dir.join(format!("{label}.desktop"));
-            fs::write(&file, shortcut_contents(os, label, &bin, avd)?)?;
+            fs::write(
+                &file,
+                shortcut_contents(os, label, &bin, avd, &icon.to_string_lossy())?,
+            )?;
             Ok(file)
         }
         "windows" => {
@@ -212,7 +236,7 @@ pub fn install_shortcut(env_path: &Path, avd: &str, label: &str) -> Result<PathB
                 .unwrap_or_else(|_| home_dir().unwrap_or_default().join("Desktop"));
             fs::create_dir_all(&dir)?;
             let file = dir.join(format!("{label}.bat"));
-            fs::write(&file, shortcut_contents(os, label, &bin, avd)?)?;
+            fs::write(&file, shortcut_contents(os, label, &bin, avd, "")?)?;
             Ok(file)
         }
         "macos" => {
@@ -272,15 +296,22 @@ mod tests {
 
     #[test]
     fn shortcuts_per_os() {
-        let linux =
-            shortcut_contents("linux", "MyPixel", "/sdk/emulator/emulator", "My_AVD").unwrap();
+        let linux = shortcut_contents(
+            "linux",
+            "MyPixel",
+            "/sdk/emulator/emulator",
+            "My_AVD",
+            "/home/u/.local/share/icons/flenv.svg",
+        )
+        .unwrap();
         assert!(linux.contains("[Desktop Entry]"));
         assert!(linux.contains("Exec=/sdk/emulator/emulator -avd My_AVD"));
+        assert!(linux.contains("Icon=/home/u/.local/share/icons/flenv.svg"));
         let win =
-            shortcut_contents("windows", "MyPixel", "C:\\Sdk\\emulator.exe", "My_AVD").unwrap();
+            shortcut_contents("windows", "MyPixel", "C:\\Sdk\\emulator.exe", "My_AVD", "").unwrap();
         assert!(win.contains("emulator.exe\" -avd My_AVD"));
-        assert!(shortcut_contents("macos", "x", "y", "z").is_err());
-        assert!(shortcut_contents("freebsd", "x", "y", "z").is_err());
+        assert!(shortcut_contents("macos", "x", "y", "z", "").is_err());
+        assert!(shortcut_contents("freebsd", "x", "y", "z", "").is_err());
     }
 
     #[test]
