@@ -4,8 +4,13 @@ FLENV_JAVA_MIN_VERSION="17"
 
 flenv_java_major_version() {
 	local java="$1"
-	local version
-	version="$("$java" -version 2>&1 | sed -n '1{s/.*version "\([0-9][0-9]*\).*/\1/p;q;}')"
+	local version output
+	output="$("$java" -version 2>&1)" || {
+		printf '%s\n' "$output" >>"${FLENV_LOG:-/dev/null}"
+		flenv_die "Java version check failed: $java"
+	}
+	printf 'Java detection: %s\n%s\n' "$java" "$output" >>"${FLENV_LOG:-/dev/null}"
+	version="$(sed -n '1{s/.*version "\([0-9][0-9]*\).*/\1/p;q;}' <<<"$output")"
 	[[ "$version" =~ ^[0-9]+$ ]] || flenv_die "cannot determine Java version from: $java"
 	printf '%s\n' "$version"
 }
@@ -36,5 +41,6 @@ flenv_detect_java() {
 
 	home="$(flenv_java_home "$java")" || flenv_die "cannot determine Java home from: $java"
 	[[ -x "$home/bin/java" ]] || flenv_die "invalid Java home: $home"
+	printf 'Java home: %s\n' "$home" >>"${FLENV_LOG:-/dev/null}"
 	printf '%s\n' "$home"
 }

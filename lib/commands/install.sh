@@ -29,19 +29,14 @@ flenv_validate_environment() {
 	flutter_home="$environment/state/flutter-home"
 	mkdir -p -- "$flutter_home"
 
-	HOME="$flutter_home" JAVA_HOME="$java_home" ANDROID_HOME="$sdk" ANDROID_SDK_ROOT="$sdk" \
-		"$flutter" config --android-sdk "$sdk" >/dev/null || flenv_die "cannot configure Flutter Android SDK"
-	HOME="$flutter_home" JAVA_HOME="$java_home" ANDROID_HOME="$sdk" ANDROID_SDK_ROOT="$sdk" \
-		"$flutter" config --jdk-dir "$java_home" >/dev/null || flenv_die "cannot configure Flutter JDK"
-
-	if ! doctor_output="$(HOME="$flutter_home" JAVA_HOME="$java_home" ANDROID_HOME="$sdk" ANDROID_SDK_ROOT="$sdk" \
-		"$flutter" doctor -v 2>&1)"; then
-		printf '%s\n' "$doctor_output" >&2
-		flenv_die "Flutter doctor failed"
-	fi
-
+	flenv_run "Configuring Flutter Android SDK" env HOME="$flutter_home" JAVA_HOME="$java_home" ANDROID_HOME="$sdk" ANDROID_SDK_ROOT="$sdk" \
+		"$flutter" config --android-sdk "$sdk" || flenv_die "cannot configure Flutter Android SDK"
+	flenv_run "Configuring Flutter JDK" env HOME="$flutter_home" JAVA_HOME="$java_home" ANDROID_HOME="$sdk" ANDROID_SDK_ROOT="$sdk" \
+		"$flutter" config --jdk-dir "$java_home" || flenv_die "cannot configure Flutter JDK"
+	flenv_run "Checking Flutter Android toolchain" env HOME="$flutter_home" JAVA_HOME="$java_home" ANDROID_HOME="$sdk" ANDROID_SDK_ROOT="$sdk" \
+		"$flutter" doctor -v || flenv_die "Flutter doctor failed"
+	doctor_output="$(<"$FLENV_OUTPUT")"
 	if ! grep -Eq '^\[✓\] Android toolchain' <<<"$doctor_output"; then
-		printf '%s\n' "$doctor_output" >&2
 		flenv_die "Flutter Android toolchain validation failed"
 	fi
 
@@ -49,7 +44,7 @@ flenv_validate_environment() {
 	flenv_mark_component_ready "$environment" environment
 }
 
-flenv_install() {
+flenv_install() (
 	local root=""
 	local name="default"
 	local isolated="false"
@@ -83,6 +78,7 @@ flenv_install() {
 	flenv_require_linux
 	flenv_validate_name "$name"
 	flenv_prepare_home
+	flenv_install_log "$name"
 
 	if [[ -n "$root" ]]; then
 		mkdir -p -- "$root" || flenv_die "cannot create root: $root"
@@ -122,14 +118,13 @@ flenv_install() {
 	flenv_provision_android "$environment"
 
 	flenv_section 4 4 "Validation"
-	flenv_step "Checking Flutter Android toolchain"
 	flenv_validate_environment "$environment"
 	flenv_success "Environment ready"
 
-	printf '\nEnvironment %s is provisioned.\n' "$name"
-	printf 'Path: %s\n' "$environment"
-	printf 'Isolated: %s\n' "$isolated"
+	flenv_message '\nEnvironment %s is provisioned.\n' "$name"
+	flenv_message 'Path: %s\n' "$environment"
+	flenv_message 'Isolated: %s\n' "$isolated"
 	if [[ "$isolated" == "true" ]]; then
-		printf 'Workspace: %s/workspace\n' "$environment"
+		flenv_message 'Workspace: %s/workspace\n' "$environment"
 	fi
-}
+)

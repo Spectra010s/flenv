@@ -49,23 +49,22 @@ flenv_provision_flutter() {
 	arch="$(flenv_flutter_arch)"
 	archive="$(flenv_flutter_release_archive "$metadata" "$arch")" || flenv_die "cannot resolve stable Flutter release"
 	bundle="$staging/$(basename -- "$archive")"
-	flenv_step "Downloading Flutter SDK"
 	flenv_download "$FLENV_FLUTTER_STORAGE_URL/$archive" "$bundle" "Flutter SDK"
 
-	flenv_step "Extracting"
 	extract_dir="$staging/extracted"
 	rm -rf -- "$extract_dir"
 	mkdir -p -- "$extract_dir"
-	tar --no-same-owner -xf "$bundle" -C "$extract_dir" || flenv_die "Flutter SDK extraction failed"
+	flenv_run "Extracting Flutter SDK" tar --no-same-owner -xvf "$bundle" -C "$extract_dir" || flenv_die "Flutter SDK extraction failed"
 	[[ -x "$extract_dir/flutter/bin/flutter" ]] || flenv_die "Flutter archive did not contain a valid SDK"
 
 	rm -rf -- "$environment/flutter"
 	mv -- "$extract_dir/flutter" "$environment/flutter" || flenv_die "cannot install Flutter SDK"
 
-	if ! version="$("$environment/flutter/bin/flutter" --version 2>/dev/null | head -n1)"; then
+	if ! flenv_run "Checking Flutter SDK" "$environment/flutter/bin/flutter" --version; then
 		rm -f -- "$environment/state/flutter.ready"
 		flenv_die "Flutter validation failed"
 	fi
+	version="$(head -n 1 "$FLENV_OUTPUT")"
 
 	flenv_mark_component_ready "$environment" flutter
 	flenv_success "${version:-Flutter ready}"

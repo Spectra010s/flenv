@@ -224,3 +224,6 @@ assert_contains "$missing" "environment not found: missing"
 )
 
 printf 'PASS: CLI foundation\n'
+
+# Exercise provisioning with local tool fixtures, never real SDK downloads.
+bash "$ROOT/test/provision.sh"

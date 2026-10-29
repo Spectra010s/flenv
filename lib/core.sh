@@ -4,23 +4,46 @@
 
 flenv_die() {
 	printf 'flenv: error: %s\n' "$*" >&2
+	if [[ -n "${FLENV_LOG:-}" ]]; then
+		printf 'flenv: error: %s\n' "$*" >&3
+	fi
 	exit 1
 }
 
 flenv_info() {
-	printf 'flenv: %s\n' "$*" >&2
+	if [[ -z "${FLENV_LOG:-}" ]]; then
+		printf 'flenv: %s\n' "$*" >&2
+		return
+	fi
+	flenv_message 'flenv: %s\n' "$*"
+}
+
+# During installation stdout/stderr belong to the log; fd 3 is the UI.
+flenv_message() {
+	# The format is supplied by flenv call sites, never by command output.
+	# shellcheck disable=SC2059
+	printf "$@" >&"${FLENV_UI_FD:-1}"
+	if [[ -n "${FLENV_LOG:-}" ]]; then
+		# shellcheck disable=SC2059
+		printf "$@" >>"$FLENV_LOG"
+	fi
 }
 
 flenv_section() {
-	printf '\n[%s/%s] %s\n' "$1" "$2" "$3"
+	# Consumed by the install exit handler in provision.sh.
+	# shellcheck disable=SC2034
+	FLENV_STAGE="$3"
+	flenv_message '\n[%s/%s] %s\n' "$1" "$2" "$3"
 }
 
 flenv_step() {
-	printf '  → %s\n' "$*"
+	# shellcheck disable=SC2034
+	FLENV_STEP="$*"
+	flenv_message '  → %s\n' "$*"
 }
 
 flenv_success() {
-	printf '  ✓ %s\n' "$*"
+	flenv_message '  ✓ %s\n' "$*"
 }
 
 flenv_require_linux() {
