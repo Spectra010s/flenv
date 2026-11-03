@@ -38,13 +38,46 @@ pub fn parse_dart_version(output: &str) -> Option<String> {
         .map(str::to_owned)
 }
 
-/// `{"frameworkVersion":"3.47.4",...}` -> `3.47.4`.
+/// `{"frameworkVersion":"3.47.4",...}` -> `3.47.4`. The first run may
+/// print welcome/analytics text around the JSON, so extract the object
+/// instead of parsing the whole output.
 pub fn parse_flutter_version(output: &str) -> Option<String> {
-    serde_json::from_str::<serde_json::Value>(output)
+    serde_json::from_str::<serde_json::Value>(json_object(output).ok()?)
         .ok()?
         .get("frameworkVersion")?
         .as_str()
         .map(str::to_owned)
+}
+
+fn json_object(output: &str) -> Result<&str> {
+    let start = output.find('{').context("no JSON object in output")?;
+    let mut depth = 0usize;
+    let mut in_string = false;
+    let mut escaped = false;
+    for (offset, ch) in output[start..].char_indices() {
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+        match ch {
+            '"' => in_string = true,
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Ok(&output[start..=start + offset]);
+                }
+            }
+            _ => {}
+        }
+    }
+    bail!("unterminated JSON object in output")
 }
 
 fn run_capture(bin: &Path, args: &[&str]) -> Option<String> {
@@ -174,8 +207,7 @@ pub fn run(home: &Path, name: Option<&str>, verbose: bool) -> Result<()> {
 
     // Provisioning writes this marker only after full validation.
     pass(
-        path.join("state/environment.ready").is_file()
-            || path.join("state/flutter.ready").is_file(),
+        path.join("state/environment.ready").is_file(),
         "Flutter Android toolchain".to_owned(),
     );
 
@@ -253,6 +285,14 @@ mod tests {
             Some("3.47.4".to_owned())
         );
         assert_eq!(parse_flutter_version("not json"), None);
+        // First run can wrap the JSON in provisioning chatter.
+        assert_eq!(
+            parse_flutter_version(
+                "Welcome to Flutter!\n{\n  \"frameworkVersion\": \"3.47.9\",\n  \"channel\": \"stable\"\n}\nSome warning {not json}"
+            ),
+            Some("3.47.9".to_owned())
+        );
+        assert_eq!(parse_flutter_version("{\"frameworkVersion\": "), None);
     }
 
     #[test]
