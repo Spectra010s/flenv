@@ -196,11 +196,17 @@ fn cmd_setup(args: SetupArgs) -> anyhow::Result<()> {
     // Record first so retries and later commands resolve the name.
     env::write_record(&home, &args.name, &environment, args.isolated)?;
 
+    // A failed retry must never leave a stale ready marker behind.
+    let _ = std::fs::remove_file(environment.join("state/environment.ready"));
+
     println!("[1/2] Flutter");
     flutter::provision(&environment, &args.flutter_version)?;
 
     println!("\n[2/2] Android");
     android::provision(&environment, &args.android_api, &args.android_build_tools)?;
+
+    // Both halves validated; only now is the environment actually ready.
+    env::mark_ready(&environment)?;
 
     println!("\nEnvironment {} provisioned.", args.name);
     println!("Path: {}", environment.display());

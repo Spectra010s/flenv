@@ -48,13 +48,22 @@ pub fn validate_name(name: &str) -> Result<()> {
 pub fn environment_path(name: &str, root: Option<&Path>, home: &Path) -> Result<PathBuf> {
     validate_name(name)?;
     if let Some(root) = root {
-        if !root.is_dir() {
-            bail!("root is not a directory: {}", root.display());
-        }
+        // A first run may point at a fresh volume; create the base.
+        fs::create_dir_all(root)
+            .with_context(|| format!("cannot create root: {}", root.display()))?;
         Ok(root.join("flenv/environments").join(name))
     } else {
         Ok(home.join("environments").join(name))
     }
+}
+
+/// Write the marker that says both halves validated. Setup clears it
+/// before provisioning so a failed retry cannot look ready.
+pub fn mark_ready(environment: &Path) -> Result<()> {
+    let state = environment.join("state");
+    fs::create_dir_all(&state)?;
+    fs::write(state.join("environment.ready"), b"")?;
+    Ok(())
 }
 
 fn record_cfg(home: &Path, name: &str) -> DotCfg {
@@ -360,6 +369,20 @@ mod tests {
         let p = environment_path("stable", None, &home).unwrap();
         assert_eq!(p, home.join("environments/stable"));
         assert!(environment_path("../x", None, &home).is_err());
+
+        // A missing root is created on first use instead of rejected.
+        let fresh = home.join("fresh-volume");
+        let p = environment_path("stable", Some(&fresh), &home).unwrap();
+        assert!(fresh.is_dir());
+        assert_eq!(p, fresh.join("flenv/environments/stable"));
+    }
+
+    #[test]
+    fn ready_marker_written() {
+        let env = tmp_home("ready-env");
+        assert!(!env.join("state/environment.ready").is_file());
+        mark_ready(&env).unwrap();
+        assert!(env.join("state/environment.ready").is_file());
     }
 
     #[test]
