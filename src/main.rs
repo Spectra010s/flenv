@@ -8,6 +8,7 @@ mod emulator;
 mod env;
 mod flutter;
 mod java;
+mod view;
 
 /// flenv: start Flutter development without Android Studio.
 #[derive(Parser, Debug)]
@@ -155,6 +156,10 @@ struct ViewArgs {
     /// Viewer backend: auto (default) or redroid
     #[arg(long, default_value = "auto")]
     backend: String,
+
+    /// SSH target for the tunnel template (default: user@hostname)
+    #[arg(long)]
+    ssh: Option<String>,
 }
 
 fn main() {
@@ -308,13 +313,13 @@ fn cmd_emulator(args: EmulatorArgs) -> anyhow::Result<()> {
 }
 
 fn cmd_view(args: ViewArgs) -> anyhow::Result<()> {
-    // Full viewer output lands in #42 (backend 1) and #43 (redroid).
-    println!(
-        "view: name={} backend={}",
-        args.name.as_deref().unwrap_or("(selected)"),
-        args.backend,
-    );
-    Ok(())
+    let home = env::flenv_home()?;
+    view::run(
+        &home,
+        args.name.as_deref(),
+        &args.backend,
+        args.ssh.as_deref(),
+    )
 }
 
 #[cfg(test)]
