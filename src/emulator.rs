@@ -24,6 +24,23 @@ fn bin_name(base: &str) -> String {
     }
 }
 
+/// AVDs and their userdata live inside the environment, not in
+/// `~/.android`, so `--isolated` stays self-contained and a small home
+/// partition is not filled by a 6 GB userdata image.
+pub fn avd_home(env_path: &Path) -> PathBuf {
+    env_path.join("avd")
+}
+
+/// Point avdmanager/emulator at the environment's AVD directory.
+fn apply_avd_env(cmd: &mut Command, env_path: &Path) {
+    let avd = avd_home(env_path);
+    let emulator_home = env_path.join("state/android-emulator");
+    let _ = fs::create_dir_all(&avd);
+    let _ = fs::create_dir_all(&emulator_home);
+    cmd.env("ANDROID_AVD_HOME", avd)
+        .env("ANDROID_EMULATOR_HOME", emulator_home);
+}
+
 fn sdk_bin(sdk: &Path, tool: &str) -> PathBuf {
     let (dir, base) = match tool {
         "avdmanager" => ("cmdline-tools/latest/bin", bin_name("avdmanager")),
@@ -79,6 +96,7 @@ fn run_sdk_tool(
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    apply_avd_env(&mut cmd, env_path);
     if let Some(java) = java_home_for(env_path) {
         cmd.env("JAVA_HOME", java);
     }
@@ -195,6 +213,7 @@ pub fn start(env_path: &Path, avd: Option<&str>, no_window: bool) -> Result<Stri
         .stdin(Stdio::null())
         .stdout(log.try_clone()?)
         .stderr(log);
+    apply_avd_env(&mut cmd, env_path);
     if let Some(java) = java_home_for(env_path) {
         cmd.env("JAVA_HOME", java);
     }
@@ -228,15 +247,16 @@ pub fn shortcut_contents(
     os: &str,
     label: &str,
     emulator_bin: &str,
+    avd_home: &str,
     avd: &str,
     icon: &str,
 ) -> Result<String> {
     match os {
         "linux" => Ok(format!(
-            "[Desktop Entry]\nVersion=1.0\nType=Application\nName={label}\nExec={emulator_bin} -avd {avd}\nIcon={icon}\nTerminal=false\n"
+            "[Desktop Entry]\nVersion=1.0\nType=Application\nName={label}\nExec=env ANDROID_AVD_HOME={avd_home} {emulator_bin} -avd {avd}\nIcon={icon}\nTerminal=false\n"
         )),
         "windows" => Ok(format!(
-            "@echo off\r\nstart /B \"\" \"{emulator_bin}\" -avd {avd} > NUL 2>&1\r\n"
+            "@echo off\r\nset \"ANDROID_AVD_HOME={avd_home}\"\r\nstart /B \"\" \"{emulator_bin}\" -avd {avd} > NUL 2>&1\r\n"
         )),
         "macos" => bail!("macOS shortcuts use osacompile at install time, not a file template"),
         _ => bail!("unsupported OS for shortcuts: {os}"),
@@ -261,6 +281,7 @@ pub fn install_shortcut(env_path: &Path, avd: &str, label: &str) -> Result<PathB
     let os = std::env::consts::OS;
     let sdk = env_path.join("android-sdk");
     let bin = sdk_bin(&sdk, "emulator").to_string_lossy().into_owned();
+    let avd_home = avd_home(env_path).to_string_lossy().into_owned();
     match os {
         "linux" => {
             let icon = install_icon()?;
@@ -269,7 +290,7 @@ pub fn install_shortcut(env_path: &Path, avd: &str, label: &str) -> Result<PathB
             let file = dir.join(format!("{label}.desktop"));
             fs::write(
                 &file,
-                shortcut_contents(os, label, &bin, avd, &icon.to_string_lossy())?,
+                shortcut_contents(os, label, &bin, &avd_home, avd, &icon.to_string_lossy())?,
             )?;
             Ok(file)
         }
@@ -279,7 +300,10 @@ pub fn install_shortcut(env_path: &Path, avd: &str, label: &str) -> Result<PathB
                 .unwrap_or_else(|_| home_dir().unwrap_or_default().join("Desktop"));
             fs::create_dir_all(&dir)?;
             let file = dir.join(format!("{label}.bat"));
-            fs::write(&file, shortcut_contents(os, label, &bin, avd, "")?)?;
+            fs::write(
+                &file,
+                shortcut_contents(os, label, &bin, &avd_home, avd, "")?,
+            )?;
             Ok(file)
         }
         "macos" => {
@@ -287,7 +311,7 @@ pub fn install_shortcut(env_path: &Path, avd: &str, label: &str) -> Result<PathB
             let status = Command::new("osacompile")
                 .arg("-e")
                 .arg(format!(
-                    "do shell script \"{bin} -avd {avd} > /dev/null 2>&1 &\""
+                    "do shell script \"ANDROID_AVD_HOME='{avd_home}' {bin} -avd {avd} > /dev/null 2>&1 &\""
                 ))
                 .arg("-o")
                 .arg(&app)
@@ -343,18 +367,37 @@ mod tests {
             "linux",
             "MyPixel",
             "/sdk/emulator/emulator",
+            "/envs/demo/avd",
             "My_AVD",
             "/home/u/.local/share/icons/flenv.svg",
         )
         .unwrap();
         assert!(linux.contains("[Desktop Entry]"));
-        assert!(linux.contains("Exec=/sdk/emulator/emulator -avd My_AVD"));
+        assert!(linux.contains(
+            "Exec=env ANDROID_AVD_HOME=/envs/demo/avd /sdk/emulator/emulator -avd My_AVD"
+        ));
         assert!(linux.contains("Icon=/home/u/.local/share/icons/flenv.svg"));
-        let win =
-            shortcut_contents("windows", "MyPixel", "C:\\Sdk\\emulator.exe", "My_AVD", "").unwrap();
+        let win = shortcut_contents(
+            "windows",
+            "MyPixel",
+            "C:\\Sdk\\emulator.exe",
+            "C:\\envs\\demo\\avd",
+            "My_AVD",
+            "",
+        )
+        .unwrap();
+        assert!(win.contains("set \"ANDROID_AVD_HOME=C:\\envs\\demo\\avd\""));
         assert!(win.contains("emulator.exe\" -avd My_AVD"));
-        assert!(shortcut_contents("macos", "x", "y", "z", "").is_err());
-        assert!(shortcut_contents("freebsd", "x", "y", "z", "").is_err());
+        assert!(shortcut_contents("macos", "x", "y", "z", "w", "").is_err());
+        assert!(shortcut_contents("freebsd", "x", "y", "z", "w", "").is_err());
+    }
+
+    #[test]
+    fn avds_live_in_the_environment() {
+        assert_eq!(
+            avd_home(Path::new("/envs/demo")),
+            PathBuf::from("/envs/demo/avd")
+        );
     }
 
     #[test]
