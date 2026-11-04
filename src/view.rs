@@ -2,6 +2,8 @@ use crate::env;
 use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::thread::sleep;
+use std::time::{Duration, Instant};
 
 /// One line of `adb devices` output.
 #[derive(Debug, PartialEq, Eq)]
@@ -88,6 +90,34 @@ pub(crate) fn adb_devices(env_path: &Path) -> Result<Vec<Device>> {
     Ok(parse_devices(&adb_run(env_path, &["devices"])?))
 }
 
+/// Android's own boot flag. adb's `device` state only means the daemon is
+/// attached; the UI can still be on the boot animation.
+pub fn parse_boot_completed(output: &str) -> bool {
+    output.trim() == "1"
+}
+
+pub fn booted(env_path: &Path, serial: &str) -> bool {
+    adb_run(
+        env_path,
+        &["-s", serial, "shell", "getprop", "sys.boot_completed"],
+    )
+    .map(|out| parse_boot_completed(&out))
+    .unwrap_or(false)
+}
+
+/// Poll until adb sees a usable device, or the deadline passes.
+fn wait_for_device(env_path: &Path) -> Result<Vec<Device>> {
+    const ATTACH_TIMEOUT: Duration = Duration::from_secs(90);
+    let deadline = Instant::now() + ATTACH_TIMEOUT;
+    loop {
+        let devices = adb_devices(env_path)?;
+        if !ready(&devices).is_empty() || Instant::now() >= deadline {
+            return Ok(devices);
+        }
+        sleep(Duration::from_secs(2));
+    }
+}
+
 /// Start command to suggest when nothing is running. Uses a real AVD
 /// when the environment has one, otherwise the default name so the
 /// line still works after `flenv emulator create`.
@@ -111,11 +141,12 @@ pub fn print_viewer(env_name: &str, devices: &[&Device], ssh: Option<&str>) {
     }
     let target = ssh.map(str::to_owned).unwrap_or_else(default_ssh_target);
     println!();
+    println!("flenv does not start a viewer; run one on this host, then open:");
     println!("noVNC:  http://localhost:6080/vnc.html?autoconnect=1&resize=remote");
     println!("VNC:    localhost:5900");
     println!("SSH:    {}", ssh_template(&target));
     println!();
-    println!("Ports assume a noVNC/VNC viewer is running in the environment.");
+    println!("Ports assume that noVNC/VNC viewer is running in the environment.");
 }
 
 /// Backend 1 (`auto`/`adb`): the emulator runs on this host (or a remote
@@ -144,10 +175,25 @@ pub fn run(
     }
 
     let (env_name, path) = env::resolve_or_selected(home, name)?;
-    let devices = adb_devices(&path)?;
-    let ready = ready(&devices);
+    let mut devices = adb_devices(&path)?;
+    let mut usable = ready(&devices);
 
-    if ready.is_empty() {
+    // Nothing attached: boot the environment's emulator headlessly, which
+    // is what `view` is for on a remote host. A failure here falls through
+    // to the manual hint below.
+    if usable.is_empty() && devices.is_empty() {
+        eprintln!("No device attached for {env_name}; starting the emulator.");
+        match crate::emulator::start(&path, None, true) {
+            Ok(avd) => {
+                eprintln!("  → Waiting for {avd}");
+                devices = wait_for_device(&path)?;
+                usable = ready(&devices);
+            }
+            Err(e) => eprintln!("  → Cannot start the emulator: {e:#}"),
+        }
+    }
+
+    if usable.is_empty() {
         if devices.is_empty() {
             eprintln!("No devices found for {env_name}.");
         } else {
@@ -164,7 +210,26 @@ pub fn run(
         bail!("no ready devices");
     }
 
-    print_viewer(&env_name, &ready, ssh);
+    // adb says `device` as soon as its daemon is up; Android may still be
+    // booting. Only report devices whose OS actually finished booting.
+    let booted: Vec<&Device> = usable
+        .iter()
+        .copied()
+        .filter(|d| booted(&path, &d.serial))
+        .collect();
+    if booted.is_empty() {
+        eprintln!("Device attached but Android has not finished booting:");
+        for device in &usable {
+            eprintln!("  {} ({})", device.serial, device.state);
+        }
+        eprintln!(
+            "Wait, or read: {}",
+            path.join("state/emulator.log").display()
+        );
+        bail!("device not booted");
+    }
+
+    print_viewer(&env_name, &booted, ssh);
     Ok(())
 }
 
@@ -219,6 +284,15 @@ mod tests {
         assert!(line.contains("-L 6080:localhost:6080"));
         assert!(line.contains("-L 5900:localhost:5900"));
         assert!(line.ends_with("ubuntu@kvm-box"));
+    }
+
+    #[test]
+    fn boot_completed_parses_android_prop() {
+        assert!(parse_boot_completed("1\n"));
+        assert!(parse_boot_completed("1"));
+        assert!(!parse_boot_completed("0"));
+        assert!(!parse_boot_completed(""));
+        assert!(!parse_boot_completed("error: closed"));
     }
 
     #[test]
