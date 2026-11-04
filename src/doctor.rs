@@ -215,12 +215,27 @@ pub fn run(home: &Path, name: Option<&str>, verbose: bool) -> Result<()> {
         println!("  → {}", kvm_hint());
     }
 
+    // AVDs and their userdata live in the environment; a system image plus
+    // userdata needs several GB, so warn before a boot or create fails.
+    let avds = crate::emulator::avd_home(&path);
+    println!("  → AVDs: {}", avds.display());
+    if let Ok(free) = fs2::available_space(&path) {
+        let free_gb = free as f64 / 1_073_741_824.0;
+        if free < 8 * 1024 * 1024 * 1024 {
+            println!(
+                "  → {free_gb:.1} GB free at {}; emulator images and userdata may need ~8 GB",
+                path.display()
+            );
+        }
+    }
+
     if verbose {
         println!("\nPaths");
         println!("  FLENV_HOME: {}", home.display());
         println!("  Environment: {}", path.display());
         println!("  FLUTTER_ROOT: {}/flutter", path.display());
         println!("  ANDROID_HOME: {}", sdk.display());
+        println!("  AVDs: {}", avds.display());
         println!(
             "  JAVA_HOME: {}",
             java_file
