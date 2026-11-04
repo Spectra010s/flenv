@@ -2,6 +2,8 @@ use anyhow::{Context, Result, bail};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::thread::sleep;
+use std::time::Duration;
 
 /// Arch-aware system image, matching the android-env approach:
 /// x86_64 hosts run the x86_64 image, ARM hosts the arm64-v8a image.
@@ -143,6 +145,23 @@ pub fn create(env_path: &Path, avd: &str, api: &str, device: &str) -> Result<()>
     Ok(())
 }
 
+/// Arguments for a detached emulator run. Without KVM the x86_64 image
+/// must fall back to TCG, otherwise the emulator exits immediately with
+/// "x86_64 emulation currently requires hardware acceleration".
+pub fn start_args(name: &str, no_window: bool, kvm: bool) -> Vec<String> {
+    let mut args = vec!["-avd".to_owned(), name.to_owned()];
+    if no_window {
+        args.push("-no-window".to_owned());
+    }
+    if !kvm {
+        args.push("-accel".to_owned());
+        args.push("off".to_owned());
+        args.push("-gpu".to_owned());
+        args.push("swiftshader_indirect".to_owned());
+    }
+    args
+}
+
 /// Start an emulator detached (like nohup): the CLI returns while the
 /// emulator boots in the background. Resolves a default AVD when none
 /// is given.
@@ -159,23 +178,47 @@ pub fn start(env_path: &Path, avd: Option<&str>, no_window: bool) -> Result<Stri
     if !bin.is_file() {
         bail!("emulator not installed; run: flenv setup");
     }
-    let mut cmd = Command::new(&bin);
-    cmd.arg("-avd").arg(&name);
-    if no_window {
-        cmd.arg("-no-window");
+    // Keep the emulator's own output: a failed boot must be readable
+    // somewhere, and a detached process has no terminal.
+    let log_path = env_path.join("state/emulator.log");
+    if let Some(parent) = log_path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("cannot create {}", parent.display()))?;
     }
+    let log = fs::File::create(&log_path)
+        .with_context(|| format!("cannot write {}", log_path.display()))?;
+
+    let mut cmd = Command::new(&bin);
+    cmd.args(start_args(&name, no_window, crate::doctor::kvm_present()));
     cmd.env("ANDROID_SDK_ROOT", &sdk)
         .env("ANDROID_HOME", &sdk)
         .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
+        .stdout(log.try_clone()?)
+        .stderr(log);
     if let Some(java) = java_home_for(env_path) {
         cmd.env("JAVA_HOME", java);
     }
     // Detach: spawn without waiting so the CLI returns immediately.
-    cmd.spawn()
+    let mut child = cmd
+        .spawn()
         .with_context(|| format!("cannot start emulator {name}"))?;
-    println!("  ✓ Emulator {name} booting in background");
+
+    // Missing acceleration or a bad image fails within a second; catch it
+    // instead of reporting success for a process that already died.
+    sleep(Duration::from_millis(1500));
+    if let Some(status) = child.try_wait()? {
+        let text = fs::read_to_string(&log_path).unwrap_or_default();
+        let lines: Vec<&str> = text.lines().collect();
+        let tail = lines[lines.len().saturating_sub(15)..].join("\n");
+        bail!(
+            "emulator {name} exited during startup ({status})\nlog: {}\n{}",
+            log_path.display(),
+            tail
+        );
+    }
+
+    eprintln!("  ✓ Emulator {name} booting in background");
+    eprintln!("    log: {}", log_path.display());
     Ok(name)
 }
 
@@ -320,5 +363,23 @@ mod tests {
         for bad in ["", "has space", "has/slash"] {
             assert!(bad.is_empty() || bad.contains('/') || bad.contains(char::is_whitespace));
         }
+    }
+
+    #[test]
+    fn no_kvm_falls_back_to_tcg() {
+        let args = start_args("My_AVD", false, false);
+        assert_eq!(args[0], "-avd");
+        assert_eq!(args[1], "My_AVD");
+        assert!(args.contains(&"-accel".to_owned()));
+        assert!(args.contains(&"off".to_owned()));
+        assert!(args.contains(&"-gpu".to_owned()));
+
+        // With KVM the emulator picks its own acceleration; no override.
+        let args = start_args("My_AVD", false, true);
+        assert!(!args.contains(&"-accel".to_owned()));
+        assert!(!args.contains(&"-gpu".to_owned()));
+
+        let args = start_args("My_AVD", true, true);
+        assert!(args.contains(&"-no-window".to_owned()));
     }
 }
