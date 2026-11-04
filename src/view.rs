@@ -1,6 +1,6 @@
 use crate::env;
 use anyhow::{Context, Result, bail};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// One line of `adb devices` output.
@@ -56,25 +56,36 @@ pub fn default_ssh_target() -> String {
     format!("{user}@{host}")
 }
 
-fn adb_devices(env_path: &Path) -> Result<Vec<Device>> {
+pub(crate) fn adb_path(env_path: &Path) -> Result<PathBuf> {
     let adb = env_path.join("android-sdk/platform-tools/adb");
     if !adb.is_file() {
         bail!("ADB not installed; run: flenv setup");
     }
+    Ok(adb)
+}
+
+/// Run adb with the environment's SDK vars, returning stdout.
+pub(crate) fn adb_run(env_path: &Path, args: &[&str]) -> Result<String> {
+    let adb = adb_path(env_path)?;
     let sdk = env_path.join("android-sdk");
     let output = Command::new(&adb)
-        .arg("devices")
+        .args(args)
         .env("ANDROID_SDK_ROOT", &sdk)
         .env("ANDROID_HOME", &sdk)
         .output()
-        .context("cannot run adb")?;
+        .with_context(|| format!("cannot run adb {}", args.join(" ")))?;
     if !output.status.success() {
         bail!(
-            "adb devices failed:\n{}",
+            "adb {} failed:\n{}",
+            args.join(" "),
             String::from_utf8_lossy(&output.stderr).trim()
         );
     }
-    Ok(parse_devices(&String::from_utf8_lossy(&output.stdout)))
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+pub(crate) fn adb_devices(env_path: &Path) -> Result<Vec<Device>> {
+    Ok(parse_devices(&adb_run(env_path, &["devices"])?))
 }
 
 /// Start command to suggest when nothing is running. Uses a real AVD
@@ -92,13 +103,38 @@ pub fn start_hint(env_path: &Path) -> String {
     format!("{emulator} -avd {avd}")
 }
 
-/// Backend 1: the emulator runs on this host (or a remote KVM host) and
-/// a viewer exposes noVNC/VNC. We only verify a device is attached and
-/// print where to look; backend 2 (redroid) is #43.
-pub fn run(home: &Path, name: Option<&str>, backend: &str, ssh: Option<&str>) -> Result<()> {
+/// Shared viewer output for both backends.
+pub fn print_viewer(env_name: &str, devices: &[&Device], ssh: Option<&str>) {
+    println!("Environment: {env_name}");
+    for device in devices {
+        println!("  ✓ {} ({})", device.serial, device.state);
+    }
+    let target = ssh.map(str::to_owned).unwrap_or_else(default_ssh_target);
+    println!();
+    println!("noVNC:  http://localhost:6080/vnc.html?autoconnect=1&resize=remote");
+    println!("VNC:    localhost:5900");
+    println!("SSH:    {}", ssh_template(&target));
+    println!();
+    println!("Ports assume a noVNC/VNC viewer is running in the environment.");
+}
+
+/// Backend 1 (`auto`/`adb`): the emulator runs on this host (or a remote
+/// KVM host) and a viewer exposes noVNC/VNC. Backend 2 (`redroid`) runs
+/// Android in Docker and reuses the same viewer output.
+pub fn run(
+    home: &Path,
+    name: Option<&str>,
+    backend: &str,
+    ssh: Option<&str>,
+    image: &str,
+    port: u16,
+) -> Result<()> {
     match backend {
         "auto" | "adb" => {}
-        "redroid" => bail!("redroid backend is not implemented yet (see #43)"),
+        "redroid" => {
+            let (env_name, path) = env::resolve_or_selected(home, name)?;
+            return crate::redroid::run(&env_name, &path, image, port, ssh);
+        }
         other => bail!("unknown backend: {other} (expected auto, adb, or redroid)"),
     }
 
@@ -123,17 +159,7 @@ pub fn run(home: &Path, name: Option<&str>, backend: &str, ssh: Option<&str>) ->
         bail!("no ready devices");
     }
 
-    println!("Environment: {env_name}");
-    for device in &ready {
-        println!("  ✓ {} ({})", device.serial, device.state);
-    }
-    let target = ssh.map(str::to_owned).unwrap_or_else(default_ssh_target);
-    println!();
-    println!("noVNC:  http://localhost:6080/vnc.html?autoconnect=1&resize=remote");
-    println!("VNC:    localhost:5900");
-    println!("SSH:    {}", ssh_template(&target));
-    println!();
-    println!("Ports assume a noVNC/VNC viewer is running in the environment.");
+    print_viewer(&env_name, &ready, ssh);
     Ok(())
 }
 
@@ -194,7 +220,9 @@ mod tests {
     fn backend_validation() {
         let home = std::env::temp_dir();
         // No environment needed: the backend is rejected before lookup.
-        assert!(run(&home, None, "redroid", None).is_err());
-        assert!(run(&home, None, "bogus", None).is_err());
+        // Unknown backends fail before any environment lookup.
+        assert!(run(&home, Some("missing-env"), "bogus", None, "", 5555).is_err());
+        // redroid resolves the environment first and fails cleanly.
+        assert!(run(&home, Some("missing-env"), "redroid", None, "", 5555).is_err());
     }
 }

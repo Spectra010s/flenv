@@ -69,3 +69,5 @@ jobs:
           cargo run -- emulator --help | grep -q start
           cargo run -- view --help | grep -q backend
           cargo run -- view --help | grep -q ssh
+          cargo run -- view --help | grep -q "image"
+          cargo run -- view --help | grep -q "redroid"

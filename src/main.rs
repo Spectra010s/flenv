@@ -8,6 +8,7 @@ mod emulator;
 mod env;
 mod flutter;
 mod java;
+mod redroid;
 mod view;
 
 /// flenv: start Flutter development without Android Studio.
@@ -153,13 +154,21 @@ struct ViewArgs {
     #[arg(long)]
     name: Option<String>,
 
-    /// Viewer backend: auto (default) or redroid
+    /// Viewer backend: auto (default), adb, or redroid
     #[arg(long, default_value = "auto")]
     backend: String,
 
     /// SSH target for the tunnel template (default: user@hostname)
     #[arg(long)]
     ssh: Option<String>,
+
+    /// Docker image for the redroid backend
+    #[arg(long, default_value = redroid::DEFAULT_IMAGE)]
+    image: String,
+
+    /// Host port for redroid's adb (container port stays 5555)
+    #[arg(long, default_value_t = 5555)]
+    port: u16,
 }
 
 fn main() {
@@ -325,6 +334,8 @@ fn cmd_view(args: ViewArgs) -> anyhow::Result<()> {
         args.name.as_deref(),
         &args.backend,
         args.ssh.as_deref(),
+        &args.image,
+        args.port,
     )
 }
 
