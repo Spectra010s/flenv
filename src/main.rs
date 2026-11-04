@@ -169,6 +169,10 @@ struct ViewArgs {
     /// Host port for redroid's adb (container port stays 5555)
     #[arg(long, default_value_t = 5555)]
     port: u16,
+
+    /// Stop the redroid container instead of viewing
+    #[arg(long, default_value_t = false)]
+    stop: bool,
 }
 
 fn main() {
@@ -336,6 +340,7 @@ fn cmd_view(args: ViewArgs) -> anyhow::Result<()> {
         args.ssh.as_deref(),
         &args.image,
         args.port,
+        args.stop,
     )
 }
 

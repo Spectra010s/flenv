@@ -72,6 +72,21 @@ fn docker_ready() -> Result<()> {
         })
 }
 
+/// Stop the container for an environment. Userdata stays on disk.
+pub fn stop_container(env_name: &str) -> Result<()> {
+    docker_ready()?;
+    let name = container_name(env_name);
+    match container_state(&name)? {
+        None => println!("No redroid container for {env_name}."),
+        Some(state) if state == "running" => {
+            docker(&["stop", &name])?;
+            println!("  ✓ Stopped redroid {name} (data kept)");
+        }
+        Some(state) => println!("  → redroid {name} is {state}; nothing to stop"),
+    }
+    Ok(())
+}
+
 /// redroid needs kernel binder support. Missing support is a warning:
 /// the container may still mount binderfs itself when privileged.
 pub fn binder_present() -> bool {
@@ -98,7 +113,11 @@ pub fn run(
     image: &str,
     port: u16,
     ssh: Option<&str>,
+    stop: bool,
 ) -> Result<()> {
+    if stop {
+        return stop_container(env_name);
+    }
     docker_ready()?;
     if !binder_present() {
         eprintln!("  → {}", binder_hint());

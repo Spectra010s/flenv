@@ -71,3 +71,4 @@ jobs:
           cargo run -- view --help | grep -q ssh
           cargo run -- view --help | grep -q "image"
           cargo run -- view --help | grep -q "redroid"
+          cargo run -- view --help | grep -q "stop"

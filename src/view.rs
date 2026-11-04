@@ -128,12 +128,17 @@ pub fn run(
     ssh: Option<&str>,
     image: &str,
     port: u16,
+    stop: bool,
 ) -> Result<()> {
     match backend {
-        "auto" | "adb" => {}
+        "auto" | "adb" => {
+            if stop {
+                bail!("--stop only applies to: flenv view --backend redroid");
+            }
+        }
         "redroid" => {
             let (env_name, path) = env::resolve_or_selected(home, name)?;
-            return crate::redroid::run(&env_name, &path, image, port, ssh);
+            return crate::redroid::run(&env_name, &path, image, port, ssh, stop);
         }
         other => bail!("unknown backend: {other} (expected auto, adb, or redroid)"),
     }
@@ -221,8 +226,10 @@ mod tests {
         let home = std::env::temp_dir();
         // No environment needed: the backend is rejected before lookup.
         // Unknown backends fail before any environment lookup.
-        assert!(run(&home, Some("missing-env"), "bogus", None, "", 5555).is_err());
+        assert!(run(&home, Some("missing-env"), "bogus", None, "", 5555, false).is_err());
         // redroid resolves the environment first and fails cleanly.
-        assert!(run(&home, Some("missing-env"), "redroid", None, "", 5555).is_err());
+        assert!(run(&home, Some("missing-env"), "redroid", None, "", 5555, false).is_err());
+        // --stop is redroid-only.
+        assert!(run(&home, Some("missing-env"), "adb", None, "", 5555, true).is_err());
     }
 }
