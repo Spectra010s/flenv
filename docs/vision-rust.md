@@ -42,6 +42,11 @@ to see the running emulator or device.
   hosts without KVM where Docker and `binderfs` are available, exposed as
   `flenv view --backend redroid`. The default backend ships first.
 
+`view` owns the container's whole lifecycle for an environment: it creates
+it on first run, reuses or restarts it later, and `--stop` shuts it down
+while keeping `<env>/redroid-data`. One command, one flag; there is no
+separate redroid stop command.
+
 ## Why Rust
 
 A single static binary per OS simplifies distribution via package managers
